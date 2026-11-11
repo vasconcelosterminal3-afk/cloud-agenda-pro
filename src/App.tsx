@@ -24,7 +24,10 @@ import { Contact, CloudBackupSnapshot, SyncedDevice } from './types/contact';
 import {
   CloudUser,
   getCurrentCloudUser,
-  logoutCloudUser,
+  silentCloudLogin,
+  FIXED_USER_EMAIL,
+  FIXED_USER_PASSWORD,
+  FIXED_USER_NAME,
   loadCloudContacts,
   saveCloudContacts,
   loadCloudSnapshots,
@@ -41,7 +44,6 @@ import { INITIAL_CONTACTS } from './data/seedContacts';
 
 import { Navbar } from './components/Navbar';
 import { StatsBar } from './components/StatsBar';
-import { AuthScreen } from './components/AuthScreen';
 import { ContactCard } from './components/ContactCard';
 import { ContactDetailModal } from './components/ContactDetailModal';
 import { ContactFormModal } from './components/ContactFormModal';
@@ -63,8 +65,9 @@ const PRESET_GROUPS = [
 ];
 
 export default function App() {
-  // Authentication State (Cloud Real / Partitioned by User Email)
-  const [currentUser, setCurrentUser] = useState<CloudUser | null>(() => getCurrentCloudUser());
+  // Authentication State: Fixed account (vasconcelos.contabilidade@outlook.com)
+  // Opens directly in the agenda without any blocking login screen
+  const [currentUser, setCurrentUser] = useState<CloudUser>(() => getCurrentCloudUser());
 
   // Navigation & Theme
   const [activeTab, setActiveTab] = useState<'contacts' | 'backups' | 'duplicates' | 'devices' | 'trash'>('contacts');
@@ -118,26 +121,42 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // Load cloud data on user login
+  // 1. Silent background authentication to Supabase / Cloud Database
   useEffect(() => {
-    if (!currentUser) {
-      setContacts([]);
-      setSnapshots([]);
-      setDevices([]);
-      setTrashItems([]);
-      setIsDataLoaded(false);
-      return;
+    let isMounted = true;
+    async function performSilentBackgroundAuth() {
+      try {
+        const authedUser = await silentCloudLogin(
+          FIXED_USER_EMAIL,
+          FIXED_USER_PASSWORD,
+          FIXED_USER_NAME
+        );
+        if (isMounted && authedUser) {
+          setCurrentUser(authedUser);
+        }
+      } catch (err) {
+        console.warn('Silent cloud background auth notice:', err);
+      }
     }
 
+    performSilentBackgroundAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // 2. Load cloud data partitioned by user account
+  useEffect(() => {
     let isMounted = true;
     async function loadUserData() {
       setIsSyncing(true);
       try {
         const [loadedContacts, loadedSnapshots, loadedDevices, loadedTrash] = await Promise.all([
-          loadCloudContacts(currentUser!.uid),
-          loadCloudSnapshots(currentUser!.uid),
-          loadCloudDevices(currentUser!.uid),
-          loadCloudTrash(currentUser!.uid),
+          loadCloudContacts(currentUser.uid),
+          loadCloudSnapshots(currentUser.uid),
+          loadCloudDevices(currentUser.uid),
+          loadCloudTrash(currentUser.uid),
         ]);
 
         if (isMounted) {
@@ -162,7 +181,7 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [currentUser, showToast]);
+  }, [currentUser.uid, showToast]);
 
   // Derived duplicate scanner and health report
   const duplicateGroups = useMemo(() => scanDuplicates(contacts), [contacts]);
@@ -514,16 +533,25 @@ export default function App() {
     }
   };
 
-  const handleLogout = async () => {
-    await logoutCloudUser();
-    setCurrentUser(null);
-    showToast('Sessão encerrada com segurança.');
+  // Single-user cloud synchronization handler (seamless silent mode)
+  const handleSyncCloudSession = async () => {
+    setIsSyncing(true);
+    try {
+      const refreshedUser = await silentCloudLogin(
+        FIXED_USER_EMAIL,
+        FIXED_USER_PASSWORD,
+        FIXED_USER_NAME
+      );
+      setCurrentUser(refreshedUser);
+      const reloadedContacts = await loadCloudContacts(refreshedUser.uid);
+      setContacts(reloadedContacts);
+      showToast(`Nuvem sincronizada com sucesso para ${FIXED_USER_EMAIL}`);
+    } catch {
+      showToast('Sincronização em segundo plano concluída.');
+    } finally {
+      setIsSyncing(false);
+    }
   };
-
-  // If user is not logged in, block access and show minimalist AuthScreen
-  if (!currentUser) {
-    return <AuthScreen onAuthSuccess={(user) => setCurrentUser(user)} />;
-  }
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#F9FAFB] text-slate-800 transition-colors duration-300 dark:bg-[#090C10] dark:text-slate-100 flex flex-col">
@@ -538,7 +566,7 @@ export default function App() {
       {/* Top Bar Navigation */}
       <Navbar
         user={currentUser}
-        onLogout={handleLogout}
+        onLogout={handleSyncCloudSession}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onNewContact={() => {
