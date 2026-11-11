@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import { Contact, PhoneNumber, EmailAddress } from '../types/contact';
+import { formatPhoneNumber } from './phoneFormatter';
 
 /**
  * Generates an RFC 2426/6350 compliant vCard 3.0 string for a contact
@@ -315,17 +316,95 @@ export function downloadFile(content: string, filename: string, mimeType: string
 }
 
 /**
- * Generates QR Code Data URL for scanning directly to mobile phonebook
+ * Generates an RFC 2426/vCard 3.0 string formatted specifically for instant
+ * native smartphone camera recognition (iOS Camera & Android Google Lens),
+ * prompting a native "Add Contact" sheet immediately upon pointing camera.
+ */
+export function generateNativeVCardString(contact: Contact): string {
+  const lines: string[] = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    `FN:${contact.name.trim()}`,
+  ];
+
+  // N (Structured Name) for native alphabetical indexing
+  const nameParts = contact.name.trim().split(' ');
+  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
+  const firstName = nameParts[0] || '';
+  const middleNames = nameParts.slice(1, -1).join(' ');
+  lines.push(`N:${lastName};${firstName};${middleNames};;`);
+
+  if (contact.company) {
+    lines.push(`ORG:${contact.company.trim()}`);
+  }
+
+  if (contact.jobTitle) {
+    lines.push(`TITLE:${contact.jobTitle.trim()}`);
+  }
+
+  // Phones with TEL;TYPE=CELL formatted as requested
+  if (contact.phones && contact.phones.length > 0) {
+    contact.phones.forEach((p) => {
+      const formatted = formatPhoneNumber(p.number) || p.number;
+      let typeTag = 'CELL';
+      if (p.type === 'work') typeTag = 'WORK';
+      else if (p.type === 'home') typeTag = 'HOME';
+      lines.push(`TEL;TYPE=${typeTag}:${formatted}`);
+    });
+  }
+
+  // Emails with EMAIL;TYPE=INTERNET
+  if (contact.emails && contact.emails.length > 0) {
+    contact.emails.forEach((e) => {
+      if (e.email) {
+        lines.push(`EMAIL;TYPE=INTERNET:${e.email.trim()}`);
+      }
+    });
+  }
+
+  // Address formatted as ADR;TYPE=HOME:;;[Endereço Completo];[Cidade];;;
+  if (contact.address) {
+    const street = contact.address.street?.trim() || '';
+    const city = contact.address.city?.trim() || '';
+    const state = contact.address.state?.trim() || '';
+    const postalCode = contact.address.postalCode?.trim() || '';
+    const country = contact.address.country?.trim() || '';
+    if (street || city) {
+      lines.push(`ADR;TYPE=HOME:;;${street};${city};${state};${postalCode};${country}`);
+    }
+  }
+
+  // Note with tags as requested: NOTE:Grupos: [Tags selecionadas]
+  const tagStr = contact.tags && contact.tags.length > 0 ? contact.tags.join(', ') : '';
+  const noteParts: string[] = [];
+  if (tagStr) {
+    noteParts.push(`Grupos: ${tagStr}`);
+  }
+  if (contact.notes) {
+    noteParts.push(contact.notes.trim());
+  }
+  if (noteParts.length > 0) {
+    lines.push(`NOTE:${noteParts.join(' | ').replace(/\r?\n/g, ' ')}`);
+  }
+
+  lines.push('END:VCARD');
+  return lines.join('\r\n');
+}
+
+/**
+ * Generates QR Code Data URL for scanning directly to mobile phonebook.
+ * Encodes the exact RFC vCard 3.0 contact payload so iOS and Android
+ * cameras detect it natively as an "Add Contact" event.
  */
 export async function generateVCardQrDataUrl(contact: Contact): Promise<string> {
-  const vcardText = generateVCard(contact);
+  const vcardText = generateNativeVCardString(contact);
   try {
     return await QRCode.toDataURL(vcardText, {
       errorCorrectionLevel: 'M',
       margin: 2,
-      width: 320,
+      width: 360,
       color: {
-        dark: '#0f172a',
+        dark: '#0a0d14',
         light: '#ffffff',
       },
     });

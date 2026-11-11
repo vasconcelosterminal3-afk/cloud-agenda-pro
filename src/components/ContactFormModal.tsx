@@ -14,6 +14,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { Contact, PhoneNumber, EmailAddress, PhoneType, EmailType } from '../types/contact';
+import { maskPhoneInput } from '../utils/phoneFormatter';
 
 interface ContactFormModalProps {
   isOpen: boolean;
@@ -60,7 +61,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
       setJobTitle(initialContact.jobTitle || '');
       setPhones(
         initialContact.phones && initialContact.phones.length > 0
-          ? initialContact.phones
+          ? initialContact.phones.map((p) => ({ ...p, number: maskPhoneInput(p.number) }))
           : [{ id: 'p_1', type: 'mobile', number: '', isPrimary: true }]
       );
       setEmails(
@@ -120,7 +121,8 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
 
   const handleUpdatePhone = (index: number, field: keyof PhoneNumber, val: any) => {
     const updated = [...phones];
-    updated[index] = { ...updated[index], [field]: val };
+    const finalVal = field === 'number' ? maskPhoneInput(val) : val;
+    updated[index] = { ...updated[index], [field]: finalVal };
     setPhones(updated);
   };
 
@@ -336,7 +338,9 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
                   </select>
 
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={15}
                     value={phone.number}
                     onChange={(e) => handleUpdatePhone(idx, 'number', e.target.value)}
                     placeholder="Ex: (11) 98765-4321"

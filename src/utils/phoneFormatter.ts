@@ -3,13 +3,46 @@ export function cleanDigits(input: string): string {
 }
 
 /**
- * Formats phone number into Brazilian standard or readable international format
+ * Máscara dinâmica de telefone em tempo real para inputs.
+ * Conforme o usuário digita apenas números, formata automaticamente com DDD e traço.
+ * - Aceita tanto fixo (10 dígitos: (XX) XXXX-XXXX)
+ * - Quanto celular (11 dígitos: (XX) XXXXX-XXXX)
+ */
+export function maskPhoneInput(value: string): string {
+  if (!value) return '';
+
+  // Se o usuário digitou prefixo internacional '+' explicitamente, mantém
+  if (value.startsWith('+')) {
+    const digits = value.replace(/\D/g, '').slice(0, 15);
+    return '+' + digits;
+  }
+
+  // Remove caracteres não numéricos e limita ao máximo de 11 dígitos
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+
+  if (digits.length === 0) return '';
+  if (digits.length <= 2) {
+    return `(${digits}`;
+  }
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  }
+  if (digits.length <= 10) {
+    // Telefone Fixo (10 dígitos) ou Celular incompleto: (XX) XXXX-XXXX
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+  // Telefone Celular com 9 dígitos (11 dígitos no total): (XX) XXXXX-XXXX
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+/**
+ * Formata número de telefone para exibição elegante no padrão brasileiro ou internacional
  */
 export function formatPhoneNumber(phone: string): string {
   if (!phone) return '';
   const digits = cleanDigits(phone);
   
-  // Brazilian phone with DDI (55)
+  // Telefone brasileiro com DDI (55)
   if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
     const ddd = digits.slice(2, 4);
     const rest = digits.slice(4);
@@ -20,7 +53,7 @@ export function formatPhoneNumber(phone: string): string {
     }
   }
 
-  // Brazilian phone without DDI
+  // Telefone brasileiro sem DDI
   if (digits.length === 11) {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   }
@@ -34,7 +67,7 @@ export function formatPhoneNumber(phone: string): string {
     return `${digits.slice(0, 4)}-${digits.slice(4)}`;
   }
 
-  // International format
+  // Formato internacional pré-formatado
   if (phone.startsWith('+')) {
     return phone;
   }
@@ -43,7 +76,7 @@ export function formatPhoneNumber(phone: string): string {
 }
 
 /**
- * Returns digits for WhatsApp link, ensuring DDI 55 if Brazilian standard DDD
+ * Retorna dígitos prontos para link do WhatsApp, garantindo DDI 55
  */
 export function getWhatsAppNumber(phone: string): string {
   let digits = cleanDigits(phone);
@@ -53,7 +86,7 @@ export function getWhatsAppNumber(phone: string): string {
     digits = digits.slice(1);
   }
   
-  // If 10 or 11 digits, assume Brazil (+55)
+  // Se 10 ou 11 dígitos, adiciona DDI Brasil (55)
   if (digits.length === 10 || digits.length === 11) {
     digits = `55${digits}`;
   }
