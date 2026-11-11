@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
 export interface TrashItem {
   contact: Contact;
   deletedAt: string;
+  autoPurgeDays?: number;
 }
 
 export interface SnapshotDiff {

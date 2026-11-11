@@ -66,7 +66,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 px-6 py-8">
+    <div className="mx-auto w-full max-w-6xl space-y-6 sm:space-y-8 px-4 sm:px-6 py-6 sm:py-8 overflow-x-hidden">
       {/* Hero Cloud Banner */}
       <div className="relative overflow-hidden rounded-3xl border border-slate-200/50 bg-gradient-to-br from-[#0B0F19] via-[#0F172A] to-[#0A0D14] p-8 text-white shadow-2xl shadow-indigo-950/20 dark:border-white/[0.08]">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">

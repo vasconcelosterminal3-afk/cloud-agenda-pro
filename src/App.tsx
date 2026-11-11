@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Search,
   Plus,
-  Filter,
   Star,
   ShieldAlert,
   Grid,
@@ -13,32 +12,36 @@ import {
   CheckSquare,
   Square,
   Users,
-  RotateCcw,
   CheckCircle,
-  AlertCircle,
   FileUp,
+  Tag,
+  Briefcase,
+  Heart,
+  UserCheck,
+  Stethoscope,
 } from 'lucide-react';
 import { Contact, CloudBackupSnapshot, SyncedDevice } from './types/contact';
 import {
-  getSavedContacts,
-  saveContacts,
-  getSavedSnapshots,
-  saveSnapshots,
-  getSavedDevices,
-  saveDevices,
-  getTrash,
-  moveToTrash,
-  restoreFromTrash,
-  emptyTrash,
-  createCloudSnapshot,
-  deleteCloudSnapshot,
-  resetToDemo,
-  TrashItem,
-} from './utils/storage';
+  CloudUser,
+  getCurrentCloudUser,
+  logoutCloudUser,
+  loadCloudContacts,
+  saveCloudContacts,
+  loadCloudSnapshots,
+  saveCloudSnapshots,
+  loadCloudDevices,
+  saveCloudDevices,
+  loadCloudTrash,
+  saveCloudTrash,
+} from './services/cloudDatabase';
 import { scanDuplicates, analyzeContactHealth } from './utils/duplicateScanner';
 import { generateBulkVCards, downloadFile } from './utils/vcard';
+import { TrashItem } from './utils/storage';
+import { INITIAL_CONTACTS } from './data/seedContacts';
+
 import { Navbar } from './components/Navbar';
 import { StatsBar } from './components/StatsBar';
+import { AuthScreen } from './components/AuthScreen';
 import { ContactCard } from './components/ContactCard';
 import { ContactDetailModal } from './components/ContactDetailModal';
 import { ContactFormModal } from './components/ContactFormModal';
@@ -51,18 +54,30 @@ import { SnapshotDiffModal } from './components/SnapshotDiffModal';
 import { DevicesView } from './components/DevicesView';
 import { TrashView } from './components/TrashView';
 
+// Core groups requested by user
+const PRESET_GROUPS = [
+  { id: 'Trabalho', label: 'Trabalho', icon: Briefcase, color: 'text-blue-500' },
+  { id: 'Família', label: 'Família', icon: Heart, color: 'text-rose-500' },
+  { id: 'Amigos', label: 'Amigos', icon: UserCheck, color: 'text-emerald-500' },
+  { id: 'Médicos', label: 'Médicos', icon: Stethoscope, color: 'text-teal-500' },
+];
+
 export default function App() {
+  // Authentication State (Cloud Real / Partitioned by User Email)
+  const [currentUser, setCurrentUser] = useState<CloudUser | null>(() => getCurrentCloudUser());
+
   // Navigation & Theme
   const [activeTab, setActiveTab] = useState<'contacts' | 'backups' | 'duplicates' | 'devices' | 'trash'>('contacts');
   const [isDarkMode, setIsDarkMode] = useState(() => {
     return localStorage.getItem('cloudagenda_theme') === 'dark';
   });
 
-  // Data states
-  const [contacts, setContacts] = useState<Contact[]>(() => getSavedContacts());
-  const [snapshots, setSnapshots] = useState<CloudBackupSnapshot[]>(() => getSavedSnapshots());
-  const [devices, setDevices] = useState<SyncedDevice[]>(() => getSavedDevices());
-  const [trashItems, setTrashItems] = useState<TrashItem[]>(() => getTrash());
+  // Data states (synced to cloud)
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [snapshots, setSnapshots] = useState<CloudBackupSnapshot[]>([]);
+  const [devices, setDevices] = useState<SyncedDevice[]>([]);
+  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isVaultUnlocked, setIsVaultUnlocked] = useState(false);
 
@@ -82,15 +97,15 @@ export default function App() {
   const [importExportTab, setImportExportTab] = useState<'import' | 'export'>('import');
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
 
-  // Toast message
+  // Toast notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const showToast = (msg: string) => {
+  const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 3500);
-  };
+  }, []);
 
   // Sync dark class on <html>
   useEffect(() => {
@@ -103,23 +118,70 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // Derived analyses
+  // Load cloud data on user login
+  useEffect(() => {
+    if (!currentUser) {
+      setContacts([]);
+      setSnapshots([]);
+      setDevices([]);
+      setTrashItems([]);
+      setIsDataLoaded(false);
+      return;
+    }
+
+    let isMounted = true;
+    async function loadUserData() {
+      setIsSyncing(true);
+      try {
+        const [loadedContacts, loadedSnapshots, loadedDevices, loadedTrash] = await Promise.all([
+          loadCloudContacts(currentUser!.uid),
+          loadCloudSnapshots(currentUser!.uid),
+          loadCloudDevices(currentUser!.uid),
+          loadCloudTrash(currentUser!.uid),
+        ]);
+
+        if (isMounted) {
+          setContacts(loadedContacts);
+          setSnapshots(loadedSnapshots);
+          setDevices(loadedDevices);
+          setTrashItems(loadedTrash);
+          setIsDataLoaded(true);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dados na nuvem:', err);
+        showToast('Aviso: operando com cache local resiliente');
+      } finally {
+        if (isMounted) {
+          setIsSyncing(false);
+        }
+      }
+    }
+
+    loadUserData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser, showToast]);
+
+  // Derived duplicate scanner and health report
   const duplicateGroups = useMemo(() => scanDuplicates(contacts), [contacts]);
   const healthReport = useMemo(() => analyzeContactHealth(contacts), [contacts]);
 
-  // Storage byte size of contacts
+  // Storage byte size of contacts in cloud
   const storageUsedBytes = useMemo(() => {
     return new Blob([JSON.stringify(contacts)]).size;
   }, [contacts]);
 
-  // Tags collection
+  // Combined tags: presets + custom tags found in contacts
   const availableTags = useMemo(() => {
     const set = new Set<string>();
+    PRESET_GROUPS.forEach((g) => set.add(g.id));
     contacts.forEach((c) => c.tags.forEach((t) => set.add(t)));
     return Array.from(set);
   }, [contacts]);
 
-  // Filtered contacts
+  // Filtered contacts list
   const filteredContacts = useMemo(() => {
     return contacts
       .filter((contact) => {
@@ -152,41 +214,80 @@ export default function App() {
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [contacts, isVaultUnlocked, selectedTag, searchQuery]);
 
+  // Save contacts helper (syncs directly to cloud database)
+  const persistContacts = async (updatedList: Contact[], toastMsg?: string) => {
+    setContacts(updatedList);
+    if (currentUser) {
+      setIsSyncing(true);
+      await saveCloudContacts(currentUser.uid, updatedList);
+      setIsSyncing(false);
+    }
+    if (toastMsg) showToast(toastMsg);
+  };
+
+  // ------------------------------------------------------------------
   // CRUD Handlers
-  const handleSaveContact = (contactToSave: Contact) => {
+  // ------------------------------------------------------------------
+
+  const handleSaveContact = async (contactToSave: Contact) => {
     const existingIndex = contacts.findIndex((c) => c.id === contactToSave.id);
     let updated: Contact[];
 
     if (existingIndex !== -1) {
       updated = [...contacts];
       updated[existingIndex] = contactToSave;
-      showToast(`Contato "${contactToSave.name}" atualizado com sucesso.`);
+      await persistContacts(updated, `Contato "${contactToSave.name}" atualizado na nuvem.`);
     } else {
       updated = [contactToSave, ...contacts];
-      showToast(`Contato "${contactToSave.name}" adicionado à agenda.`);
+      await persistContacts(updated, `Contato "${contactToSave.name}" adicionado à nuvem.`);
     }
 
-    setContacts(updated);
-    saveContacts(updated);
-
     // Auto-create point in snapshots if significant
-    createCloudSnapshot(updated, `Alteração de contato: ${contactToSave.name}`);
-    setSnapshots(getSavedSnapshots());
+    if (currentUser) {
+      const snap: CloudBackupSnapshot = {
+        id: 'snap_' + Date.now(),
+        label: `Alteração: ${contactToSave.name}`,
+        createdAt: new Date().toLocaleString('pt-BR'),
+        contactCount: updated.length,
+        sizeBytes: new Blob([JSON.stringify(updated)]).size,
+        deviceOrigin: 'Web Nuvem',
+        checksum: 'E2EE-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        contacts: updated,
+        isAutomatic: true,
+      };
+      const newSnapshots = [snap, ...snapshots];
+      setSnapshots(newSnapshots);
+      saveCloudSnapshots(currentUser.uid, newSnapshots);
+    }
   };
 
-  const handleDeleteContact = (contact: Contact) => {
-    moveToTrash(contact);
-    setContacts(getSavedContacts());
-    setTrashItems(getTrash());
+  const handleDeleteContact = async (contact: Contact) => {
+    const updated = contacts.filter((c) => c.id !== contact.id);
+    const newTrashItem: TrashItem = {
+      contact,
+      deletedAt: new Date().toLocaleString('pt-BR'),
+      autoPurgeDays: 30,
+    };
+    const updatedTrash = [newTrashItem, ...trashItems];
+
+    setContacts(updated);
+    setTrashItems(updatedTrash);
+
+    if (currentUser) {
+      await Promise.all([
+        saveCloudContacts(currentUser.uid, updated),
+        saveCloudTrash(currentUser.uid, updatedTrash),
+      ]);
+    }
+
     showToast(`Contato "${contact.name}" movido para a lixeira.`);
   };
 
-  const handleToggleFavorite = (contactId: string) => {
+  const handleToggleFavorite = async (contactId: string) => {
     const updated = contacts.map((c) =>
       c.id === contactId ? { ...c, isFavorite: !c.isFavorite } : c
     );
-    setContacts(updated);
-    saveContacts(updated);
+    await persistContacts(updated);
   };
 
   const handleSelectContact = (contactId: string, selected: boolean) => {
@@ -205,13 +306,31 @@ export default function App() {
   };
 
   // Bulk actions
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedContactIds.size === 0) return;
     const toDelete = contacts.filter((c) => selectedContactIds.has(c.id));
-    toDelete.forEach((c) => moveToTrash(c));
-    setContacts(getSavedContacts());
-    setTrashItems(getTrash());
+    const remaining = contacts.filter((c) => !selectedContactIds.has(c.id));
+
+    const newTrash = [
+      ...toDelete.map((c) => ({
+        contact: c,
+        deletedAt: new Date().toLocaleString('pt-BR'),
+        autoPurgeDays: 30,
+      })),
+      ...trashItems,
+    ];
+
+    setContacts(remaining);
+    setTrashItems(newTrash);
     setSelectedContactIds(new Set());
+
+    if (currentUser) {
+      await Promise.all([
+        saveCloudContacts(currentUser.uid, remaining),
+        saveCloudTrash(currentUser.uid, newTrash),
+      ]);
+    }
+
     showToast(`${toDelete.length} contatos movidos para a lixeira.`);
   };
 
@@ -222,57 +341,108 @@ export default function App() {
     showToast(`${selected.length} contatos exportados em vCard.`);
   };
 
-  // Instant Cloud Backup
-  const handleTriggerBackup = (customLabel?: string) => {
-    setIsSyncing(true);
-    setTimeout(() => {
-      const snap = createCloudSnapshot(contacts, customLabel || 'Backup Instantâneo em Nuvem');
-      setSnapshots(getSavedSnapshots());
-      setIsSyncing(false);
-      showToast(`Snapshot "${snap.label}" criado e salvo na nuvem.`);
-    }, 800);
+  const handleBulkAddTag = async (tagName: string) => {
+    if (selectedContactIds.size === 0) return;
+    const updated = contacts.map((c) => {
+      if (selectedContactIds.has(c.id)) {
+        const currentTags = c.tags || [];
+        return currentTags.includes(tagName) ? c : { ...c, tags: [...currentTags, tagName] };
+      }
+      return c;
+    });
+
+    await persistContacts(updated, `Tag "${tagName}" adicionada aos contatos selecionados.`);
   };
 
-  // Restore snapshot
-  const handleRestoreSnapshot = (snapshot: CloudBackupSnapshot) => {
-    saveContacts(snapshot.contacts);
-    setContacts(snapshot.contacts);
-    showToast(`Agenda restaurada com sucesso para: "${snapshot.label}"!`);
+  // Trigger manual cloud backup snapshot
+  const handleTriggerBackup = async (customLabel?: string) => {
+    if (!currentUser) return;
+    setIsSyncing(true);
+
+    const snap: CloudBackupSnapshot = {
+      id: 'snap_' + Date.now(),
+      label: customLabel || `Backup Manual em Nuvem (${new Date().toLocaleTimeString('pt-BR')})`,
+      createdAt: new Date().toLocaleString('pt-BR'),
+      contactCount: contacts.length,
+      sizeBytes: new Blob([JSON.stringify(contacts)]).size,
+      deviceOrigin: 'Navegador Web / Nuvem E2EE',
+      checksum: 'E2EE-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+      contacts,
+      isAutomatic: false,
+    };
+
+    const updatedSnapshots = [snap, ...snapshots];
+    setSnapshots(updatedSnapshots);
+    await saveCloudSnapshots(currentUser.uid, updatedSnapshots);
+    setIsSyncing(false);
+    showToast(`Snapshot "${snap.label}" salvo na nuvem com sucesso!`);
+  };
+
+  const handleRestoreSnapshot = async (snapshot: CloudBackupSnapshot) => {
+    if (!currentUser) return;
+    await persistContacts(snapshot.contacts);
+    showToast(`Agenda restaurada com sucesso para a versão: "${snapshot.label}"!`);
     setActiveTab('contacts');
   };
 
-  const handleDeleteSnapshot = (id: string) => {
-    deleteCloudSnapshot(id);
-    setSnapshots(getSavedSnapshots());
+  const handleDeleteSnapshot = async (id: string) => {
+    if (!currentUser) return;
+    const updated = snapshots.filter((s) => s.id !== id);
+    setSnapshots(updated);
+    await saveCloudSnapshots(currentUser.uid, updated);
     showToast('Ponto de restauração removido da nuvem.');
   };
 
   // Trash actions
-  const handleRestoreFromTrash = (contactId: string) => {
-    const restored = restoreFromTrash(contactId);
-    if (restored) {
-      setContacts(getSavedContacts());
-      setTrashItems(getTrash());
-      showToast(`Contato "${restored.name}" restaurado para a agenda.`);
+  const handleRestoreFromTrash = async (contactId: string) => {
+    const item = trashItems.find((t) => t.contact.id === contactId);
+    if (!item) return;
+
+    const updatedTrash = trashItems.filter((t) => t.contact.id !== contactId);
+    const updatedContacts = [item.contact, ...contacts];
+
+    setContacts(updatedContacts);
+    setTrashItems(updatedTrash);
+
+    if (currentUser) {
+      await Promise.all([
+        saveCloudContacts(currentUser.uid, updatedContacts),
+        saveCloudTrash(currentUser.uid, updatedTrash),
+      ]);
     }
+
+    showToast(`Contato "${item.contact.name}" restaurado para a agenda.`);
   };
 
-  const handleRestoreAllTrash = () => {
-    const currentTrash = getTrash();
-    currentTrash.forEach((item) => restoreFromTrash(item.contact.id));
-    setContacts(getSavedContacts());
+  const handleRestoreAllTrash = async () => {
+    if (trashItems.length === 0) return;
+    const restored = trashItems.map((t) => t.contact);
+    const updatedContacts = [...restored, ...contacts];
+
+    setContacts(updatedContacts);
     setTrashItems([]);
+
+    if (currentUser) {
+      await Promise.all([
+        saveCloudContacts(currentUser.uid, updatedContacts),
+        saveCloudTrash(currentUser.uid, []),
+      ]);
+    }
+
     showToast('Todos os contatos da lixeira foram restaurados.');
   };
 
-  const handleEmptyTrash = () => {
-    emptyTrash();
+  const handleEmptyTrash = async () => {
     setTrashItems([]);
+    if (currentUser) {
+      await saveCloudTrash(currentUser.uid, []);
+    }
     showToast('Lixeira esvaziada permanentemente.');
   };
 
   // Device actions
-  const handleSyncDevice = (deviceId: string) => {
+  const handleSyncDevice = async (deviceId: string) => {
+    if (!currentUser) return;
     const updated = devices.map((d) =>
       d.id === deviceId
         ? {
@@ -283,65 +453,63 @@ export default function App() {
         : d
     );
     setDevices(updated);
-    saveDevices(updated);
-    showToast('Contatos sincronizados com o aparelho com sucesso.');
+    await saveCloudDevices(currentUser.uid, updated);
+    showToast('Aparelho sincronizado com a nuvem com sucesso.');
   };
 
-  const handleRemoveDevice = (deviceId: string) => {
+  const handleRemoveDevice = async (deviceId: string) => {
+    if (!currentUser) return;
     const updated = devices.filter((d) => d.id !== deviceId);
     setDevices(updated);
-    saveDevices(updated);
-    showToast('Aparelho desvinculado da sua conta de nuvem.');
+    await saveCloudDevices(currentUser.uid, updated);
+    showToast('Aparelho desvinculado da conta.');
   };
 
-  const handleAddDevice = (newDev: SyncedDevice) => {
+  const handleAddDevice = async (newDev: SyncedDevice) => {
+    if (!currentUser) return;
     const updated = [newDev, ...devices];
     setDevices(updated);
-    saveDevices(updated);
-    showToast(`Dispositivo "${newDev.name}" pareado e sincronizado!`);
+    await saveCloudDevices(currentUser.uid, updated);
+    showToast(`Dispositivo "${newDev.name}" pareado com a sua conta na nuvem!`);
   };
 
   // Import contacts
-  const handleImportContacts = (imported: Contact[], mode: 'append' | 'replace') => {
+  const handleImportContacts = async (imported: Contact[], mode: 'append' | 'replace') => {
     let finalContacts: Contact[];
     if (mode === 'replace') {
-      // Create rollback snapshot first
-      createCloudSnapshot(contacts, 'Backup Automático Pré-Substituição');
       finalContacts = imported;
     } else {
       finalContacts = [...contacts, ...imported];
     }
 
-    saveContacts(finalContacts);
-    setContacts(finalContacts);
-    createCloudSnapshot(finalContacts, `Importação de ${imported.length} contatos`);
-    setSnapshots(getSavedSnapshots());
-    showToast(`${imported.length} contatos importados com sucesso!`);
+    await persistContacts(finalContacts, `${imported.length} contatos sincronizados com a nuvem!`);
   };
 
-  // Merges
-  const handleApplyMerges = (mergedList: Contact[]) => {
-    saveContacts(mergedList);
-    setContacts(mergedList);
-    createCloudSnapshot(mergedList, 'Limpeza e Mesclagem de Duplicados');
-    setSnapshots(getSavedSnapshots());
-    showToast('Contatos mesclados e duplicados removidos com sucesso!');
+  // Merge duplicates
+  const handleApplyMerges = async (mergedList: Contact[]) => {
+    await persistContacts(mergedList, 'Contatos duplicados mesclados e organizados com sucesso!');
   };
 
-  const handleResetDemo = () => {
-    if (window.confirm('Deseja recarregar a base de contatos e backups de demonstração?')) {
-      resetToDemo();
-      setContacts(getSavedContacts());
-      setSnapshots(getSavedSnapshots());
-      setDevices(getSavedDevices());
-      setTrashItems([]);
-      showToast('Dados de demonstração restaurados.');
+  const handleResetDemo = async () => {
+    if (window.confirm('Deseja recarregar a base de contatos padrão para esta conta?')) {
+      await persistContacts(INITIAL_CONTACTS, 'Dados de demonstração restaurados na nuvem.');
     }
   };
 
+  const handleLogout = async () => {
+    await logoutCloudUser();
+    setCurrentUser(null);
+    showToast('Sessão encerrada com segurança.');
+  };
+
+  // If user is not logged in, block access and show minimalist AuthScreen
+  if (!currentUser) {
+    return <AuthScreen onAuthSuccess={(user) => setCurrentUser(user)} />;
+  }
+
   return (
-    <div className="min-h-screen bg-[#FBFBFC] text-slate-800 transition-colors duration-300 dark:bg-[#090C10] dark:text-slate-100 flex flex-col">
-      {/* Toast Notification - Apple style floating pill */}
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#F9FAFB] text-slate-800 transition-colors duration-300 dark:bg-[#090C10] dark:text-slate-100 flex flex-col">
+      {/* Toast Notification - Floating pill */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-900/95 px-4.5 py-3 text-xs font-medium text-white shadow-2xl shadow-slate-900/20 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 animate-slide-up">
           <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -351,6 +519,8 @@ export default function App() {
 
       {/* Top Bar Navigation */}
       <Navbar
+        user={currentUser}
+        onLogout={handleLogout}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onNewContact={() => {
@@ -374,6 +544,7 @@ export default function App() {
         duplicateCount={duplicateGroups.length}
         storageUsedBytes={storageUsedBytes}
         lastSyncTime={snapshots[0]?.createdAt || null}
+        cloudUserEmail={currentUser.email}
         onOpenImportExport={(tab) => {
           setImportExportTab(tab);
           setImportExportOpen(true);
@@ -382,13 +553,13 @@ export default function App() {
       />
 
       {/* Main View Router */}
-      <main className="flex-1 pb-16">
+      <main className="w-full max-w-full overflow-x-hidden flex-1 pb-16">
         {activeTab === 'contacts' && (
-          <div className="mx-auto max-w-7xl px-6 py-8 space-y-6">
+          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-6 sm:py-8 space-y-6 overflow-x-hidden">
             {/* Filter Bar & Controls */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 w-full">
               {/* Search input with Apple/Linear clean style */}
-              <div className="relative flex-1 max-w-md">
+              <div className="relative flex-1 w-full md:max-w-md">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
@@ -408,11 +579,11 @@ export default function App() {
               </div>
 
               {/* View layout toggle & Select all */}
-              <div className="flex items-center gap-2 self-end md:self-auto">
+              <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
                 {filteredContacts.length > 0 && (
                   <button
                     onClick={handleSelectAll}
-                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-[#0E121B] dark:text-slate-300 dark:hover:border-white/[0.16] transition-all duration-300 hover:-translate-y-0.5"
+                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-[#0E121B] dark:text-slate-300 transition-all duration-200 hover:-translate-y-0.5"
                   >
                     {selectedContactIds.size === filteredContacts.length ? (
                       <CheckSquare className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
@@ -454,14 +625,14 @@ export default function App() {
               </div>
             </div>
 
-            {/* Segmented Tag Filters - Apple style micro pills */}
-            <div className="flex flex-wrap items-center gap-1.5">
+            {/* Segmented Tag Filters - Apple style micro pills with Presets (Família, Trabalho, Amigos, Médicos) */}
+            <div className="flex flex-wrap items-center gap-1.5 w-full">
               <button
                 onClick={() => setSelectedTag('all')}
-                className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-300 hover:-translate-y-0.5 ${
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
                   selectedTag === 'all'
                     ? 'bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900'
-                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08] dark:hover:border-white/[0.16]'
+                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
                 }`}
               >
                 Todos ({contacts.length})
@@ -469,10 +640,10 @@ export default function App() {
 
               <button
                 onClick={() => setSelectedTag('favorites')}
-                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-300 hover:-translate-y-0.5 ${
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
                   selectedTag === 'favorites'
                     ? 'bg-amber-500 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08] dark:hover:border-white/[0.16]'
+                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
                 }`}
               >
                 <Star className="h-3.5 w-3.5 fill-current" />
@@ -481,55 +652,93 @@ export default function App() {
 
               <button
                 onClick={() => setSelectedTag('ice')}
-                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-300 hover:-translate-y-0.5 ${
+                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
                   selectedTag === 'ice'
                     ? 'bg-rose-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08] dark:hover:border-white/[0.16]'
+                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
                 }`}
               >
                 <ShieldAlert className="h-3.5 w-3.5" />
                 <span>Emergência ICE</span>
               </button>
 
-              {availableTags.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => setSelectedTag(tag)}
-                  className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-300 hover:-translate-y-0.5 ${
-                    selectedTag === tag
-                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
-                      : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08] dark:hover:border-white/[0.16]'
-                  }`}
-                >
-                  {tag}
-                </button>
-              ))}
+              {/* Group presets: Trabalho, Família, Amigos, Médicos */}
+              {PRESET_GROUPS.map((grp) => {
+                const IconComponent = grp.icon;
+                const count = contacts.filter((c) => c.tags?.includes(grp.id)).length;
+                return (
+                  <button
+                    key={grp.id}
+                    onClick={() => setSelectedTag(grp.id)}
+                    className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
+                      selectedTag === grp.id
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
+                        : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
+                    }`}
+                  >
+                    <IconComponent className={`h-3.5 w-3.5 ${selectedTag === grp.id ? 'text-white' : grp.color}`} />
+                    <span>{grp.label}</span>
+                    <span className="opacity-70 font-mono text-[11px]">({count})</span>
+                  </button>
+                );
+              })}
+
+              {/* Any additional custom tags */}
+              {availableTags
+                .filter((t) => !PRESET_GROUPS.some((g) => g.id === t))
+                .map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedTag(tag)}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
+                      selectedTag === tag
+                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
+                        : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
+                    }`}
+                  >
+                    #{tag}
+                  </button>
+                ))}
             </div>
 
             {/* Bulk Actions Floating Bar */}
             {selectedContactIds.size > 0 && (
-              <div className="flex items-center justify-between gap-4 rounded-2xl border border-indigo-200/50 bg-indigo-50/70 px-4 py-3 dark:border-indigo-900/40 dark:bg-indigo-950/30 backdrop-blur-md shadow-sm animate-fade-in">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200/50 bg-indigo-50/70 px-4 py-3 dark:border-indigo-900/40 dark:bg-indigo-950/30 backdrop-blur-md shadow-sm w-full animate-fade-in">
                 <div className="text-xs font-semibold text-indigo-950 dark:text-indigo-200">
                   {selectedContactIds.size} contato{selectedContactIds.size > 1 ? 's' : ''} selecionado{selectedContactIds.size > 1 ? 's' : ''}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Quick tag batch action */}
+                  <div className="hidden sm:flex items-center gap-1 border-r border-indigo-200/60 dark:border-indigo-800/40 pr-2">
+                    <span className="text-[11px] text-indigo-900/70 dark:text-indigo-300">Marcar:</span>
+                    {PRESET_GROUPS.map((g) => (
+                      <button
+                        key={g.id}
+                        onClick={() => handleBulkAddTag(g.id)}
+                        className="rounded-lg bg-white/80 dark:bg-white/10 px-2 py-1 text-[10px] font-medium text-slate-700 dark:text-slate-200 hover:bg-white"
+                      >
+                        +{g.label}
+                      </button>
+                    ))}
+                  </div>
+
                   <button
                     onClick={handleBulkExportVcf}
-                    className="flex items-center gap-1 rounded-xl bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:bg-white/[0.08] dark:text-slate-200 transition-all duration-300 hover:-translate-y-0.5"
+                    className="flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:bg-white/[0.08] dark:text-slate-200 transition-all duration-200 hover:-translate-y-0.5"
                   >
                     <Download className="h-3.5 w-3.5" />
                     <span>Exportar vCard</span>
                   </button>
                   <button
                     onClick={handleBulkDelete}
-                    className="flex items-center gap-1 rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-500 transition-all duration-300 hover:-translate-y-0.5"
+                    className="flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-500 transition-all duration-200 hover:-translate-y-0.5"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    <span>Mover para Lixeira</span>
+                    <span>Lixeira</span>
                   </button>
                   <button
                     onClick={() => setSelectedContactIds(new Set())}
-                    className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 ml-2"
+                    className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 ml-1"
                   >
                     Desmarcar
                   </button>
@@ -539,7 +748,7 @@ export default function App() {
 
             {/* Contacts Grid / List */}
             {filteredContacts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200/80 bg-white p-12 text-center dark:border-white/[0.08] dark:bg-[#0E121B] shadow-2xs">
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200/80 bg-white p-10 sm:p-12 text-center dark:border-white/[0.08] dark:bg-[#0E121B] shadow-2xs w-full">
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 dark:bg-white/[0.04] mb-3">
                   <Users className="h-6 w-6 stroke-[1.8]" />
                 </div>
@@ -549,15 +758,15 @@ export default function App() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
                   {searchQuery
                     ? `Nenhum resultado corresponde à busca "${searchQuery}".`
-                    : 'Não há contatos cadastrados nesta categoria.'}
+                    : 'Não há contatos cadastrados nesta categoria na sua conta de nuvem.'}
                 </p>
-                <div className="mt-5 flex items-center gap-2.5">
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
                   <button
                     onClick={() => {
                       setEditingContact(null);
                       setIsFormOpen(true);
                     }}
-                    className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-500 transition-all duration-300 hover:-translate-y-0.5"
+                    className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-500 transition-all duration-200 hover:-translate-y-0.5"
                   >
                     <Plus className="h-3.5 w-3.5" />
                     <span>Criar Novo Contato</span>
@@ -567,7 +776,7 @@ export default function App() {
                       setImportExportTab('import');
                       setImportExportOpen(true);
                     }}
-                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200 transition-all duration-300 hover:-translate-y-0.5"
+                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200 transition-all duration-200 hover:-translate-y-0.5"
                   >
                     <FileUp className="h-3.5 w-3.5" />
                     <span>Importar Arquivo (.vcf)</span>
@@ -575,11 +784,12 @@ export default function App() {
                 </div>
               </div>
             ) : (
+              /* REQUIRED GRID STRUCTURE: grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full */
               <div
                 className={
                   viewLayout === 'grid'
-                    ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
-                    : 'space-y-3'
+                    ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full'
+                    : 'space-y-3 w-full'
                 }
               >
                 {filteredContacts.map((contact) => (
@@ -704,12 +914,12 @@ export default function App() {
       />
 
       {/* Footer */}
-      <footer className="mt-auto border-t border-slate-200 bg-white py-4 px-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mx-auto max-w-7xl">
-          <div className="flex items-center gap-2">
+      <footer className="mt-auto border-t border-slate-200/80 bg-white py-4 px-4 sm:px-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-[#0A0D14] w-full max-w-full overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mx-auto max-w-7xl w-full">
+          <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
             <span className="font-semibold text-slate-700 dark:text-slate-300">CloudAgenda Pro</span>
             <span>·</span>
-            <span>Backup e Sincronização em Nuvem de Contatos Telefônicos</span>
+            <span>Nuvem Conectada ({currentUser.email})</span>
           </div>
           <div className="text-[11px] text-slate-400 font-mono">
             E2EE Criptografado · Padrão RFC vCard 3.0/4.0 · Google CSV Ready

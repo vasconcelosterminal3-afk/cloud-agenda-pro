@@ -22,7 +22,7 @@ interface ContactFormModalProps {
   initialContact?: Contact | null;
 }
 
-const DEFAULT_TAGS = ['VIP', 'Família', 'Trabalho', 'Amigos', 'Clientes', 'Saúde', 'Serviços'];
+const DEFAULT_TAGS = ['Trabalho', 'Família', 'Amigos', 'Médicos', 'VIP', 'Clientes', 'Serviços'];
 
 export const ContactFormModal: React.FC<ContactFormModalProps> = ({
   isOpen,
