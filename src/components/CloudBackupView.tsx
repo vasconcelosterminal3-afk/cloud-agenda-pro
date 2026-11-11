@@ -66,32 +66,32 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-6">
+    <div className="mx-auto max-w-6xl space-y-8 px-6 py-8">
       {/* Hero Cloud Banner */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-8 text-white shadow-xl dark:border-slate-800">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/50 bg-gradient-to-br from-[#0B0F19] via-[#0F172A] to-[#0A0D14] p-8 text-white shadow-2xl shadow-indigo-950/20 dark:border-white/[0.08]">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <div className="flex items-center gap-2">
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400">
+              <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
                 <ShieldCheck className="h-4 w-4" />
                 Cofre em Nuvem Ativo & Protegido
               </span>
-              <span className="text-xs text-slate-400">
-                Criptografia AES-256 de Ponta a Ponta
+              <span className="text-xs text-slate-400 font-mono">
+                Criptografia AES-256 E2EE
               </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
               Central de Backup & Restauração
             </h1>
-            <p className="max-w-2xl text-sm text-slate-300">
+            <p className="max-w-2xl text-xs md:text-sm text-slate-300 font-normal leading-relaxed">
               Sua agenda telefônica é sincronizada continuamente em nuvem segura. Crie pontos de restauração antes de viagens ou alterações, compare alterações e recupere contatos apagados com 1 clique.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
             <button
               onClick={() => setIsCreatingManual(true)}
-              className="flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-semibold text-white backdrop-blur-sm hover:bg-white/20 transition-colors"
+              className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/20 transition-all duration-300 hover:-translate-y-0.5"
             >
               <Plus className="h-4 w-4" />
               <span>Criar Ponto Manual</span>
@@ -100,7 +100,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
             <button
               onClick={() => onTriggerBackup()}
               disabled={isSyncing}
-              className="flex items-center justify-center gap-2 rounded-xl bg-indigo-500 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-500/30 hover:bg-indigo-400 active:scale-95 disabled:opacity-50 transition-all"
+              className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-98 disabled:opacity-50 transition-all duration-300 hover:-translate-y-0.5"
             >
               <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
               <span>{isSyncing ? 'Sincronizando Nuvem...' : 'Sincronizar Nuvem Agora'}</span>
@@ -180,15 +180,15 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
 
       {/* Cloud Configuration Options */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+        <div className="rounded-2xl border border-slate-100/90 bg-white p-6 dark:border-white/[0.06] dark:bg-[#0E121B] shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
             <RefreshCw className="h-4 w-4 text-indigo-500" />
             <span>Frequência de Backup</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
             Com que frequência o aplicativo deve registrar novos snapshots automáticos.
           </p>
-          <div className="mt-3.5 grid grid-cols-2 gap-1.5">
+          <div className="mt-4 grid grid-cols-2 gap-1.5">
             {[
               { id: 'realtime', label: 'Tempo Real' },
               { id: '1h', label: 'A cada 1h' },
@@ -198,10 +198,10 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
               <button
                 key={opt.id}
                 onClick={() => setSyncFrequency(opt.id as any)}
-                className={`rounded-lg py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-xl py-1.5 text-xs font-medium transition-all duration-200 ${
                   syncFrequency === opt.id
-                    ? 'bg-indigo-600 text-white'
-                    : 'border border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
+                    : 'border border-slate-200/70 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300'
                 }`}
               >
                 {opt.label}
@@ -210,15 +210,15 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+        <div className="rounded-2xl border border-slate-100/90 bg-white p-6 dark:border-white/[0.06] dark:bg-[#0E121B] shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
             <ShieldCheck className="h-4 w-4 text-emerald-500" />
             <span>Segurança & Integridade</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
             Validação de integridade via checksum SHA-256 e redundância em nuvem.
           </p>
-          <div className="mt-3 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
+          <div className="mt-4 space-y-2 text-xs text-slate-600 dark:text-slate-400">
             <div className="flex items-center justify-between">
               <span>Algoritmo de Hash:</span>
               <span className="font-mono text-slate-900 dark:text-white">SHA-256</span>
@@ -234,21 +234,21 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex items-center gap-2 text-sm font-bold text-slate-900 dark:text-white">
+        <div className="rounded-2xl border border-slate-100/90 bg-white p-6 dark:border-white/[0.06] dark:bg-[#0E121B] shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
             <HardDrive className="h-4 w-4 text-sky-500" />
             <span>Compatibilidade Universal</span>
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
             Exporte snapshots em formatos nativos para qualquer telefone ou computador.
           </p>
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-4 flex items-center gap-2">
             <button
               onClick={() => {
                 const vcf = generateBulkVCards(contacts);
                 downloadFile(vcf, 'minha_agenda_completa.vcf', 'text/vcard');
               }}
-              className="flex-1 rounded-lg border border-slate-200 bg-slate-50 py-2 text-center text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="flex-1 rounded-xl border border-slate-200/70 bg-white py-2 text-center text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300 transition-all duration-300 hover:-translate-y-0.5"
             >
               Baixar .VCF
             </button>
@@ -257,7 +257,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
                 const csv = generateCsv(contacts);
                 downloadFile(csv, 'minha_agenda_google.csv', 'text/csv');
               }}
-              className="flex-1 rounded-lg border border-slate-200 bg-slate-50 py-2 text-center text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              className="flex-1 rounded-xl border border-slate-200/70 bg-white py-2 text-center text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300 transition-all duration-300 hover:-translate-y-0.5"
             >
               Baixar .CSV
             </button>
@@ -269,7 +269,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
       <div>
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white">
               Histórico de Pontos de Restauração em Nuvem
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -298,11 +298,11 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
             return (
               <div
                 key={snap.id}
-                className="group flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-xl border border-slate-200/90 bg-white p-5 transition-all hover:border-slate-300 dark:border-slate-800 dark:bg-slate-900"
+                className="group flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border border-slate-100/90 bg-white p-5 shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 dark:border-white/[0.06] dark:bg-[#0E121B]"
               >
                 {/* Left Info */}
                 <div className="flex items-start gap-3.5">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600 dark:bg-white/[0.04] dark:text-slate-300">
                     {snap.deviceOrigin.toLowerCase().includes('iphone') ? (
                       <Smartphone className="h-5 w-5 text-indigo-500" />
                     ) : snap.deviceOrigin.toLowerCase().includes('macbook') ? (
@@ -314,16 +314,16 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
 
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                         {snap.label}
                       </h3>
                       {snap.isAutomatic && (
-                        <span className="rounded bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-white/[0.06] dark:text-slate-400">
                           Automático
                         </span>
                       )}
                       {index === 0 && (
-                        <span className="rounded bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+                        <span className="rounded-md border border-indigo-200/60 bg-indigo-50/80 px-2 py-0.5 text-[10px] font-semibold text-indigo-600 dark:border-indigo-800/40 dark:bg-indigo-950/60 dark:text-indigo-400">
                           Mais Recente
                         </span>
                       )}
@@ -352,7 +352,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
                 <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
                   <button
                     onClick={() => onInspectDiff(snap)}
-                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
+                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300 transition-all duration-300 hover:-translate-y-0.5"
                     title="Comparar contatos atuais com este backup"
                   >
                     <GitCompare className="h-3.5 w-3.5 text-indigo-500" />
@@ -361,14 +361,14 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
 
                   <button
                     onClick={() => onRestoreSnapshot(snap)}
-                    className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 transition-colors shadow-sm"
+                    className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 shadow-sm shadow-indigo-600/20 transition-all duration-300 hover:-translate-y-0.5"
                     title="Restaurar toda a agenda para este ponto"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                     <span>Restaurar</span>
                   </button>
 
-                  <div className="flex items-center border-l border-slate-200 pl-2 dark:border-slate-800">
+                  <div className="flex items-center border-l border-slate-200/60 pl-2 dark:border-white/[0.08]">
                     <button
                       onClick={() => handleDownloadSnapshotVCard(snap)}
                       className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"

@@ -206,21 +206,28 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl transition-all dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white shadow-2xl shadow-slate-900/10 transition-all dark:bg-[#0E121B] border border-slate-100 dark:border-white/[0.08]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <User className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              {initialContact ? 'Editar Contato' : 'Adicionar Novo Contato'}
-            </h3>
+        <div className="flex items-center justify-between border-b border-slate-100/80 px-6 py-4 dark:border-white/[0.06]">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+              <User className="h-4.5 w-4.5 stroke-[2]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                {initialContact ? 'Editar Contato' : 'Adicionar Novo Contato'}
+              </h3>
+              <p className="text-[11px] text-slate-400">
+                Preencha os detalhes cadastrais e sincronize com a nuvem
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4.5 w-4.5" />
           </button>
         </div>
 
@@ -229,7 +236,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
           {/* Main Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
                 Nome Completo <span className="text-rose-500">*</span>
               </label>
               <input
@@ -238,12 +245,12 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ex: Carlos Eduardo Silva"
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="mt-1.5 w-full rounded-xl border border-slate-200/70 bg-white px-3.5 py-2 text-xs text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/15 dark:border-white/[0.08] dark:bg-[#090C10] dark:text-white transition-all duration-300"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
                 Apelido
               </label>
               <input
@@ -251,7 +258,7 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="Ex: Cadu"
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="mt-1.5 w-full rounded-xl border border-slate-200/70 bg-white px-3.5 py-2 text-xs text-slate-900 shadow-2xs placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/15 dark:border-white/[0.08] dark:bg-[#090C10] dark:text-white transition-all duration-300"
               />
             </div>
 
@@ -524,22 +531,22 @@ export const ContactFormModal: React.FC<ContactFormModalProps> = ({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Anotações pessoais, preferências, histórico ou informações adicionais..."
-              className="w-full rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-xl border border-slate-200/70 bg-white p-3 text-xs text-slate-900 shadow-2xs focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/15 dark:border-white/[0.08] dark:bg-[#090C10] dark:text-white transition-all duration-300"
             />
           </div>
 
           {/* Footer Submit */}
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-3 border-t border-slate-100/80 pt-4 dark:border-white/[0.06]">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="rounded-xl border border-slate-200/70 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:text-slate-300 dark:hover:bg-white/[0.04] transition-all duration-300 hover:-translate-y-0.5"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-indigo-600 px-5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500"
+              className="rounded-xl bg-indigo-600 px-5 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-500 transition-all duration-300 hover:-translate-y-0.5"
             >
               {initialContact ? 'Salvar Alterações' : 'Criar Contato'}
             </button>

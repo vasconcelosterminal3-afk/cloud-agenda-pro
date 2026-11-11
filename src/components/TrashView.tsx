@@ -17,13 +17,13 @@ export const TrashView: React.FC<TrashViewProps> = ({
   onEmptyTrash,
 }) => {
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
             Lixeira de Contatos Protegida
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Contatos apagados são preservados por 30 dias na nuvem com restauração a qualquer momento.
           </p>
         </div>
@@ -32,7 +32,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={onRestoreAll}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-[#0E121B] dark:text-slate-200 transition-all duration-300 hover:-translate-y-0.5"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               <span>Restaurar Todos ({trashItems.length})</span>
@@ -40,7 +40,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
 
             <button
               onClick={onEmptyTrash}
-              className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-rose-500 transition-colors shadow-sm"
+              className="flex items-center gap-1.5 rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs hover:bg-rose-500 transition-all duration-300 hover:-translate-y-0.5"
             >
               <Trash2 className="h-3.5 w-3.5" />
               <span>Esvaziar Lixeira</span>
@@ -50,14 +50,14 @@ export const TrashView: React.FC<TrashViewProps> = ({
       </div>
 
       {trashItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-slate-800">
-            <Trash2 className="h-6 w-6" />
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200/80 bg-white p-12 text-center dark:border-white/[0.08] dark:bg-[#0E121B] shadow-2xs">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 dark:bg-white/[0.04] mb-3">
+            <Trash2 className="h-6 w-6 stroke-[1.8]" />
           </div>
-          <h3 className="mt-3 text-sm font-bold text-slate-900 dark:text-white">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
             A Lixeira está vazia
           </h3>
-          <p className="mt-1 max-w-sm text-xs text-slate-500">
+          <p className="mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">
             Nenhum contato foi excluído. Se você remover algum contato por engano, ele aparecerá aqui com contagem regressiva de 30 dias para recuperação.
           </p>
         </div>
@@ -74,18 +74,18 @@ export const TrashView: React.FC<TrashViewProps> = ({
             return (
               <div
                 key={contact.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-slate-100/90 bg-white p-4.5 shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 dark:border-white/[0.06] dark:bg-[#0E121B]"
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-slate-900 dark:text-white">
+                    <span className="font-semibold text-sm text-slate-900 dark:text-white">
                       {contact.name}
                     </span>
                     {contact.company && (
                       <span className="text-xs text-slate-400">· {contact.company}</span>
                     )}
                   </div>
-                  <div className="mt-1 flex items-center gap-3 text-xs text-slate-500">
+                  <div className="mt-1 flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
                     <span className="font-mono tabular-nums">
                       {formatPhoneNumber(contact.phones[0]?.number || '')}
                     </span>
@@ -100,7 +100,7 @@ export const TrashView: React.FC<TrashViewProps> = ({
 
                 <button
                   onClick={() => onRestore(contact.id)}
-                  className="flex items-center gap-1.5 rounded-lg bg-indigo-50 px-3.5 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:text-indigo-400 transition-colors self-start sm:self-auto"
+                  className="flex items-center gap-1.5 rounded-xl border border-indigo-200/60 bg-indigo-50/70 px-3.5 py-1.5 text-xs font-semibold text-indigo-600 hover:bg-indigo-100 dark:border-indigo-800/40 dark:bg-indigo-950/40 dark:text-indigo-400 transition-all duration-300 hover:-translate-y-0.5 self-start sm:self-auto"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   <span>Restaurar para Agenda</span>

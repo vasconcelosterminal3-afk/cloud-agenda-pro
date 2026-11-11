@@ -164,16 +164,16 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white shadow-2xl shadow-slate-900/10 dark:bg-[#0E121B] border border-slate-100 dark:border-white/[0.08]">
         {/* Header with Segmented Tab switcher */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-lg dark:bg-slate-800">
+        <div className="flex items-center justify-between border-b border-slate-100/80 px-6 py-4 dark:border-white/[0.06]">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl dark:bg-white/[0.06] border border-slate-200/40 dark:border-white/[0.04]">
             <button
               onClick={() => setActiveTab('import')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                 activeTab === 'import'
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-white/[0.14] dark:text-white'
                   : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
@@ -182,9 +182,9 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('export')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                 activeTab === 'export'
-                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white'
+                  ? 'bg-white text-slate-900 shadow-sm dark:bg-white/[0.14] dark:text-white'
                   : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
               }`}
             >
@@ -195,9 +195,9 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4.5 w-4.5" />
           </button>
         </div>
 

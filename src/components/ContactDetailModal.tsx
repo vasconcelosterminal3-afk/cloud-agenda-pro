@@ -102,19 +102,19 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl transition-all dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white shadow-2xl shadow-slate-900/10 transition-all dark:bg-[#0E121B] border border-slate-100 dark:border-white/[0.08]">
         {/* Header Bar */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+        <div className="flex items-center justify-between border-b border-slate-100/80 px-6 py-4 dark:border-white/[0.06]">
           <div className="flex items-center gap-2">
             <button
               onClick={() => onToggleFavorite(contact.id)}
-              className={`p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
-                contact.isFavorite ? 'text-amber-500' : 'text-slate-400'
+              className={`p-1.5 rounded-xl hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-all duration-200 ${
+                contact.isFavorite ? 'text-amber-400' : 'text-slate-400'
               }`}
               title={contact.isFavorite ? 'Remover dos favoritos' : 'Favoritar'}
             >
-              <Star className={`h-5 w-5 ${contact.isFavorite ? 'fill-amber-400' : ''}`} />
+              <Star className={`h-4.5 w-4.5 ${contact.isFavorite ? 'fill-amber-400' : ''}`} />
             </button>
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
               Cartão de Contato
@@ -125,26 +125,26 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
             <button
               onClick={handleDownloadVCard}
               title="Baixar vCard (.vcf) para este contato"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200 transition-all duration-300 hover:-translate-y-0.5"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-3.5 w-3.5 opacity-70" />
               <span>vCard</span>
             </button>
 
             <button
               onClick={() => onOpenQr(contact)}
               title="QR Code para celular"
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200 transition-all duration-300 hover:-translate-y-0.5"
             >
-              <QrCode className="h-3.5 w-3.5" />
+              <QrCode className="h-3.5 w-3.5 opacity-70" />
               <span>QR Code</span>
             </button>
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+              className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/[0.06] dark:hover:text-slate-200 transition-colors"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4.5 w-4.5" />
             </button>
           </div>
         </div>
@@ -158,13 +158,11 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
                   src={contact.avatarUrl}
                   alt={contact.name}
                   referrerPolicy="no-referrer"
-                  className="h-20 w-20 rounded-2xl object-cover border-2 border-white shadow-md dark:border-slate-800"
+                  className="h-20 w-20 rounded-2xl object-cover ring-2 ring-white/80 dark:ring-slate-800 shadow-md"
                 />
               ) : (
                 <div
-                  className={`flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-tr ${
-                    contact.avatarColor || 'from-indigo-600 to-sky-600'
-                  } text-2xl font-bold text-white shadow-md`}
+                  className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 text-xl font-bold text-white shadow-md tracking-wider"
                 >
                   {contact.name.substring(0, 2).toUpperCase()}
                 </div>
@@ -182,7 +180,7 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
                   </span>
                 )}
                 {contact.isEmergencyIce && (
-                  <span className="flex items-center gap-1 rounded bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-600 dark:bg-rose-950/60 dark:text-rose-400">
+                  <span className="flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
                     <ShieldAlert className="h-3.5 w-3.5" />
                     Emergência ICE
                   </span>
@@ -190,8 +188,8 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
               </div>
 
               {(contact.jobTitle || contact.company) && (
-                <div className="mt-1 flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
-                  <Building className="h-4 w-4 text-slate-400 shrink-0" />
+                <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                  <Building className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <span>
                     {[contact.jobTitle, contact.company].filter(Boolean).join(' · ')}
                   </span>
@@ -200,11 +198,11 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
 
               {/* Tags */}
               {contact.tags && contact.tags.length > 0 && (
-                <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                   <Tag className="h-3.5 w-3.5 text-slate-400" />
                   {contact.tags.map((tag, idx) => (
                     <React.Fragment key={tag}>
-                      {idx > 0 && <span>·</span>}
+                      {idx > 0 && <span className="opacity-40">·</span>}
                       <span>{tag}</span>
                     </React.Fragment>
                   ))}
@@ -221,25 +219,25 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
                   href={getWhatsAppUrl(primaryPhone)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300 transition-colors"
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/8 p-3 text-emerald-700 hover:bg-emerald-500/15 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300 transition-all duration-300 hover:-translate-y-0.5"
                 >
-                  <MessageSquare className="h-5 w-5" />
+                  <MessageSquare className="h-4.5 w-4.5" />
                   <span className="text-xs font-semibold">WhatsApp</span>
                 </a>
 
                 <a
                   href={getTelUrl(primaryPhone)}
-                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-300 transition-colors"
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-indigo-500/20 bg-indigo-500/8 p-3 text-indigo-700 hover:bg-indigo-500/15 dark:border-indigo-400/20 dark:bg-indigo-400/10 dark:text-indigo-300 transition-all duration-300 hover:-translate-y-0.5"
                 >
-                  <Phone className="h-5 w-5" />
+                  <Phone className="h-4.5 w-4.5" />
                   <span className="text-xs font-semibold">Ligar</span>
                 </a>
 
                 <a
                   href={getSmsUrl(primaryPhone)}
-                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/80 p-3 text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-300 transition-colors"
+                  className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-slate-200/70 bg-slate-50/80 p-3 text-slate-700 hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300 transition-all duration-300 hover:-translate-y-0.5"
                 >
-                  <FileText className="h-5 w-5" />
+                  <FileText className="h-4.5 w-4.5" />
                   <span className="text-xs font-semibold">SMS</span>
                 </a>
               </>
@@ -248,9 +246,9 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
             {primaryEmail && (
               <a
                 href={`mailto:${primaryEmail}`}
-                className="flex flex-col items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50/60 p-3 text-sky-700 hover:bg-sky-100 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-300 transition-colors"
+                className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-sky-500/20 bg-sky-500/8 p-3 text-sky-700 hover:bg-sky-500/15 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-300 transition-all duration-300 hover:-translate-y-0.5"
               >
-                <Mail className="h-5 w-5" />
+                <Mail className="h-4.5 w-4.5" />
                 <span className="text-xs font-semibold">E-mail</span>
               </a>
             )}
@@ -408,13 +406,13 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
         </div>
 
         {/* Footer Actions: Edit & Delete */}
-        <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-4 dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex items-center justify-between border-t border-slate-100/80 bg-slate-50/50 px-6 py-4 dark:border-white/[0.06] dark:bg-white/[0.02]">
           <button
             onClick={() => {
               onDelete(contact);
               onClose();
             }}
-            className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 transition-colors"
           >
             <Trash2 className="h-4 w-4" />
             <span>Mover para Lixeira</span>
@@ -423,7 +421,7 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors"
+              className="rounded-xl border border-slate-200/70 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-white/[0.08] dark:text-slate-300 dark:hover:bg-white/[0.06] transition-all duration-300 hover:-translate-y-0.5"
             >
               Fechar
             </button>
@@ -432,7 +430,7 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
                 onEdit(contact);
                 onClose();
               }}
-              className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 transition-colors"
+              className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4.5 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-500 transition-all duration-300 hover:-translate-y-0.5"
             >
               <Edit2 className="h-3.5 w-3.5" />
               <span>Editar Contato</span>

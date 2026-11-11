@@ -69,36 +69,36 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="mx-auto max-w-5xl space-y-6 px-6 py-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+          <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-white">
             Dispositivos Sincronizados em Nuvem
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Todos os telefones, tablets e computadores conectados à sua conta CloudAgenda Pro.
           </p>
         </div>
 
         <button
           onClick={() => setShowPairModal(true)}
-          className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors self-start sm:self-auto"
+          className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-500 transition-all duration-300 hover:-translate-y-0.5 self-start sm:self-auto"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           <span>Parear Novo Aparelho</span>
         </button>
       </div>
 
       {/* Sync Status Banner */}
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 text-xs text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300 flex items-center justify-between gap-4">
+      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/6 p-4.5 text-xs text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/8 dark:text-emerald-300 flex items-center justify-between gap-4 shadow-2xs">
         <div className="flex items-center gap-3">
-          <Radio className="h-5 w-5 text-emerald-600 animate-pulse shrink-0" />
+          <Radio className="h-4.5 w-4.5 text-emerald-600 animate-pulse shrink-0" />
           <div>
-            <span className="font-bold">Sync Hub Bidirecional Ativo: </span>
-            <span>Qualquer contato adicionado ou editado neste navegador é replicado em milissegundos para todos os aparelhos ativos.</span>
+            <span className="font-semibold">Sync Hub Bidirecional Ativo: </span>
+            <span className="opacity-90">Qualquer contato adicionado ou editado neste navegador é replicado em milissegundos para todos os aparelhos ativos.</span>
           </div>
         </div>
-        <span className="font-mono font-semibold hidden md:inline shrink-0">
+        <span className="font-mono text-[11px] font-medium hidden md:inline shrink-0 opacity-80">
           TLS 1.3 / WebSocket Push
         </span>
       </div>
@@ -111,31 +111,31 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
           return (
             <div
               key={dev.id}
-              className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+              className="flex flex-col justify-between rounded-2xl border border-slate-100/90 bg-white p-5 shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 dark:border-white/[0.06] dark:bg-[#0E121B]"
             >
               <div>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-50 text-indigo-600 dark:bg-white/[0.04] dark:text-indigo-400">
                       {dev.platform === 'ios' || dev.platform === 'android' ? (
-                        <Smartphone className="h-6 w-6" />
+                        <Smartphone className="h-5 w-5" />
                       ) : (
-                        <Laptop className="h-6 w-6" />
+                        <Laptop className="h-5 w-5" />
                       )}
                     </div>
 
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                         {dev.name}
                       </h3>
-                      <div className="text-xs text-slate-500 font-mono">
+                      <div className="text-xs text-slate-400 font-mono mt-0.5">
                         {dev.model} · {dev.clientVersion}
                       </div>
                     </div>
                   </div>
 
-                  <span className="flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                     Ativo
                   </span>
                 </div>
@@ -177,31 +177,31 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
 
       {/* Pairing Modal */}
       {showPairModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl dark:bg-[#0E121B] border border-slate-100 dark:border-white/[0.08] text-center">
+            <div className="flex items-center justify-between pb-3.5 border-b border-slate-100 dark:border-white/[0.06]">
+              <h3 className="text-sm font-semibold tracking-tight text-slate-900 dark:text-white">
                 Vincular Novo Dispositivo
               </h3>
               <button
                 onClick={() => setShowPairModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-white/[0.06] transition-all duration-200"
               >
                 ✕
               </button>
             </div>
 
             <div className="my-5 space-y-4 text-left">
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Abra o app CloudAgenda Pro no seu celular ou utilize o código de pareamento seguro abaixo:
               </p>
 
-              <div className="flex flex-col items-center justify-center p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                <div className="text-xs text-slate-400 mb-1">Código de Pareamento de 6 Dígitos</div>
-                <div className="text-2xl font-extrabold font-mono tracking-widest text-indigo-600 dark:text-indigo-400">
+              <div className="flex flex-col items-center justify-center p-5 rounded-2xl bg-[#F9FAFB] dark:bg-white/[0.03] border border-slate-100 dark:border-white/[0.06]">
+                <div className="text-[11px] font-medium text-slate-400 mb-1">Código de Pareamento de 6 Dígitos</div>
+                <div className="text-2xl font-bold font-mono tracking-widest text-indigo-600 dark:text-indigo-400">
                   {pairCode.slice(0, 3)} - {pairCode.slice(3)}
                 </div>
-                <div className="text-[11px] text-slate-400 mt-1">Expira em 10 minutos</div>
+                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Expira em 10 minutos</div>
               </div>
 
               <div>
@@ -211,13 +211,13 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <button
                     onClick={() => handlePairSimulatedDevice('ios')}
-                    className="rounded-lg border border-slate-200 p-2.5 text-center font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                    className="rounded-xl border border-slate-200/80 p-3 text-center font-medium text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/30 dark:border-white/[0.08] dark:text-slate-300 dark:hover:border-indigo-500/30 dark:hover:bg-indigo-500/10 transition-all duration-300"
                   >
                     + iPad Pro iOS
                   </button>
                   <button
                     onClick={() => handlePairSimulatedDevice('android')}
-                    className="rounded-lg border border-slate-200 p-2.5 text-center font-medium hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
+                    className="rounded-xl border border-slate-200/80 p-3 text-center font-medium text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/30 dark:border-white/[0.08] dark:text-slate-300 dark:hover:border-indigo-500/30 dark:hover:bg-indigo-500/10 transition-all duration-300"
                   >
                     + Google Pixel 9
                   </button>
@@ -227,7 +227,7 @@ export const DevicesView: React.FC<DevicesViewProps> = ({
 
             <button
               onClick={() => setShowPairModal(false)}
-              className="w-full rounded-lg border border-slate-200 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300"
+              className="w-full rounded-xl border border-slate-200/80 py-2.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 dark:border-white/[0.08] dark:text-slate-300 dark:hover:bg-white/[0.06] transition-all duration-300"
             >
               Fechar
             </button>

@@ -66,59 +66,59 @@ export const DuplicateCleanerModal: React.FC<DuplicateCleanerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl bg-white shadow-2xl shadow-slate-900/10 dark:bg-[#0E121B] border border-slate-100 dark:border-white/[0.08]">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between border-b border-slate-100/80 px-6 py-4.5 dark:border-white/[0.06]">
+          <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <Sparkles className="h-5 w-5" />
+              <Sparkles className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                 Otimizador & Limpeza Inteligente de Agenda
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-[11px] text-slate-400">
                 Detecção avançada de contatos repetidos, telefones duplicados e auditoria de saúde.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4.5 w-4.5" />
           </button>
         </div>
 
         {/* Health Score Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-850">
-          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="text-xs text-slate-500">Índice de Otimização</div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6 border-b border-slate-100/80 dark:border-white/[0.06] bg-[#F9FAFB]/70 dark:bg-white/[0.02]">
+          <div className="rounded-2xl border border-slate-100/90 bg-white p-4.5 dark:border-white/[0.06] dark:bg-[#111622] shadow-2xs">
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Índice de Otimização</div>
             <div className="mt-1 flex items-baseline gap-2">
               <span className="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400 font-mono tabular-nums">
                 {healthReport.score}%
               </span>
-              <span className="text-xs text-slate-400">Score de Saúde</span>
+              <span className="text-[11px] text-slate-400">Score de Saúde</span>
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="text-xs text-slate-500">Duplicados Identificados</div>
+          <div className="rounded-2xl border border-slate-100/90 bg-white p-4.5 dark:border-white/[0.06] dark:bg-[#111622] shadow-2xs">
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Duplicados Identificados</div>
             <div className="mt-1 text-2xl font-bold font-mono tabular-nums text-amber-600 dark:text-amber-400">
               {duplicateGroups.length} grupos
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="text-xs text-slate-500">Contatos sem Telefone</div>
+          <div className="rounded-2xl border border-slate-100/90 bg-white p-4.5 dark:border-white/[0.06] dark:bg-[#111622] shadow-2xs">
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Contatos sem Telefone</div>
             <div className="mt-1 text-2xl font-bold font-mono tabular-nums text-rose-600 dark:text-rose-400">
               {healthReport.noPhoneCount} registros
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <div className="text-xs text-slate-500">Perfis 100% Completos</div>
+          <div className="rounded-2xl border border-slate-100/90 bg-white p-4.5 dark:border-white/[0.06] dark:bg-[#111622] shadow-2xs">
+            <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">Perfis 100% Completos</div>
             <div className="mt-1 text-2xl font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">
               {healthReport.completeProfilesCount} contatos
             </div>
@@ -129,10 +129,10 @@ export const DuplicateCleanerModal: React.FC<DuplicateCleanerModalProps> = ({
         <div className="p-6 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
                 Contatos Duplicados ({duplicateGroups.length})
               </h4>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 A fusão inteligente preserva todos os números, e-mails, notas e tags em um único contato.
               </p>
             </div>
@@ -140,7 +140,7 @@ export const DuplicateCleanerModal: React.FC<DuplicateCleanerModalProps> = ({
             {duplicateGroups.length > 0 && (
               <button
                 onClick={handleMergeAll}
-                className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors whitespace-nowrap self-start sm:self-auto"
+                className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-500 transition-all duration-300 hover:-translate-y-0.5 whitespace-nowrap self-start sm:self-auto"
               >
                 <GitMerge className="h-4 w-4" />
                 <span>Mesclar Todos ({duplicateGroups.length}) com 1 Clique</span>

@@ -340,10 +340,10 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors dark:bg-slate-950 dark:text-slate-100 flex flex-col">
-      {/* Toast Notification */}
+    <div className="min-h-screen bg-[#FBFBFC] text-slate-800 transition-colors duration-300 dark:bg-[#090C10] dark:text-slate-100 flex flex-col">
+      {/* Toast Notification - Apple style floating pill */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-900 px-4 py-3 text-xs font-semibold text-white shadow-2xl dark:border-slate-800 animate-slide-up">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-900/95 px-4.5 py-3 text-xs font-medium text-white shadow-2xl shadow-slate-900/20 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 animate-slide-up">
           <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
           <span>{toastMessage}</span>
         </div>
@@ -384,10 +384,10 @@ export default function App() {
       {/* Main View Router */}
       <main className="flex-1 pb-16">
         {activeTab === 'contacts' && (
-          <div className="mx-auto max-w-7xl p-6 space-y-6">
+          <div className="mx-auto max-w-7xl px-6 py-8 space-y-6">
             {/* Filter Bar & Controls */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              {/* Search input */}
+              {/* Search input with Apple/Linear clean style */}
               <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
@@ -395,12 +395,12 @@ export default function App() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Pesquisar por nome, telefone, e-mail ou notas..."
-                  className="w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 py-2 text-xs text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-800 dark:bg-slate-900 dark:text-white"
+                  className="w-full rounded-2xl border border-slate-200/70 bg-white pl-10 pr-4 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 shadow-2xs hover:border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/15 dark:border-white/[0.08] dark:bg-[#0E121B] dark:text-white dark:hover:border-white/[0.14] transition-all duration-300"
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                   >
                     Limpar
                   </button>
@@ -412,10 +412,10 @@ export default function App() {
                 {filteredContacts.length > 0 && (
                   <button
                     onClick={handleSelectAll}
-                    className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-3.5 py-2 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-[#0E121B] dark:text-slate-300 dark:hover:border-white/[0.16] transition-all duration-300 hover:-translate-y-0.5"
                   >
                     {selectedContactIds.size === filteredContacts.length ? (
-                      <CheckSquare className="h-3.5 w-3.5 text-indigo-600" />
+                      <CheckSquare className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                     ) : (
                       <Square className="h-3.5 w-3.5 text-slate-400" />
                     )}
@@ -427,12 +427,12 @@ export default function App() {
                   </button>
                 )}
 
-                <div className="flex items-center border border-slate-200 rounded-lg bg-white p-0.5 dark:border-slate-800 dark:bg-slate-900">
+                <div className="flex items-center border border-slate-200/70 rounded-xl bg-white p-0.5 dark:border-white/[0.08] dark:bg-[#0E121B] shadow-2xs">
                   <button
                     onClick={() => setViewLayout('grid')}
-                    className={`p-1.5 rounded-md ${
+                    className={`p-1.5 rounded-lg transition-colors ${
                       viewLayout === 'grid'
-                        ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white'
+                        ? 'bg-slate-100 text-slate-900 dark:bg-white/[0.12] dark:text-white'
                         : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                     title="Visualização em Grade"
@@ -441,9 +441,9 @@ export default function App() {
                   </button>
                   <button
                     onClick={() => setViewLayout('list')}
-                    className={`p-1.5 rounded-md ${
+                    className={`p-1.5 rounded-lg transition-colors ${
                       viewLayout === 'list'
-                        ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-white'
+                        ? 'bg-slate-100 text-slate-900 dark:bg-white/[0.12] dark:text-white'
                         : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
                     }`}
                     title="Visualização em Lista"
@@ -454,14 +454,14 @@ export default function App() {
               </div>
             </div>
 
-            {/* Segmented Tag Filters */}
+            {/* Segmented Tag Filters - Apple style micro pills */}
             <div className="flex flex-wrap items-center gap-1.5">
               <button
                 onClick={() => setSelectedTag('all')}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-300 hover:-translate-y-0.5 ${
                   selectedTag === 'all'
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+                    ? 'bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900'
+                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08] dark:hover:border-white/[0.16]'
                 }`}
               >
                 Todos ({contacts.length})
@@ -469,10 +469,10 @@ export default function App() {
 
               <button
                 onClick={() => setSelectedTag('favorites')}
-                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-300 hover:-translate-y-0.5 ${
                   selectedTag === 'favorites'
-                    ? 'bg-amber-500 text-white'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+                    ? 'bg-amber-500 text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08] dark:hover:border-white/[0.16]'
                 }`}
               >
                 <Star className="h-3.5 w-3.5 fill-current" />
@@ -481,10 +481,10 @@ export default function App() {
 
               <button
                 onClick={() => setSelectedTag('ice')}
-                className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-300 hover:-translate-y-0.5 ${
                   selectedTag === 'ice'
-                    ? 'bg-rose-600 text-white'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+                    ? 'bg-rose-600 text-white shadow-xs'
+                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08] dark:hover:border-white/[0.16]'
                 }`}
               >
                 <ShieldAlert className="h-3.5 w-3.5" />
@@ -495,10 +495,10 @@ export default function App() {
                 <button
                   key={tag}
                   onClick={() => setSelectedTag(tag)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-300 hover:-translate-y-0.5 ${
                     selectedTag === tag
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800'
+                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
+                      : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08] dark:hover:border-white/[0.16]'
                   }`}
                 >
                   {tag}
@@ -508,21 +508,21 @@ export default function App() {
 
             {/* Bulk Actions Floating Bar */}
             {selectedContactIds.size > 0 && (
-              <div className="flex items-center justify-between gap-4 rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3 dark:border-indigo-900/60 dark:bg-indigo-950/40 animate-fade-in">
-                <div className="text-xs font-bold text-indigo-950 dark:text-indigo-200">
+              <div className="flex items-center justify-between gap-4 rounded-2xl border border-indigo-200/50 bg-indigo-50/70 px-4 py-3 dark:border-indigo-900/40 dark:bg-indigo-950/30 backdrop-blur-md shadow-sm animate-fade-in">
+                <div className="text-xs font-semibold text-indigo-950 dark:text-indigo-200">
                   {selectedContactIds.size} contato{selectedContactIds.size > 1 ? 's' : ''} selecionado{selectedContactIds.size > 1 ? 's' : ''}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleBulkExportVcf}
-                    className="flex items-center gap-1 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200"
+                    className="flex items-center gap-1 rounded-xl bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:bg-white/[0.08] dark:text-slate-200 transition-all duration-300 hover:-translate-y-0.5"
                   >
                     <Download className="h-3.5 w-3.5" />
                     <span>Exportar vCard</span>
                   </button>
                   <button
                     onClick={handleBulkDelete}
-                    className="flex items-center gap-1 rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-rose-500"
+                    className="flex items-center gap-1 rounded-xl bg-rose-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-500 transition-all duration-300 hover:-translate-y-0.5"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     <span>Mover para Lixeira</span>
@@ -539,34 +539,38 @@ export default function App() {
 
             {/* Contacts Grid / List */}
             {filteredContacts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white p-12 text-center dark:border-slate-800 dark:bg-slate-900">
-                <Users className="h-10 w-10 text-slate-400 mb-3" />
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200/80 bg-white p-12 text-center dark:border-white/[0.08] dark:bg-[#0E121B] shadow-2xs">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 dark:bg-white/[0.04] mb-3">
+                  <Users className="h-6 w-6 stroke-[1.8]" />
+                </div>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
                   Nenhum contato encontrado
                 </h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
                   {searchQuery
                     ? `Nenhum resultado corresponde à busca "${searchQuery}".`
-                    : 'Não há contatos neste filtro no momento.'}
+                    : 'Não há contatos cadastrados nesta categoria.'}
                 </p>
-                <div className="mt-4 flex items-center gap-2">
+                <div className="mt-5 flex items-center gap-2.5">
                   <button
                     onClick={() => {
                       setEditingContact(null);
                       setIsFormOpen(true);
                     }}
-                    className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500"
+                    className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-500 transition-all duration-300 hover:-translate-y-0.5"
                   >
-                    + Criar Novo Contato
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Criar Novo Contato</span>
                   </button>
                   <button
                     onClick={() => {
                       setImportExportTab('import');
                       setImportExportOpen(true);
                     }}
-                    className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200 transition-all duration-300 hover:-translate-y-0.5"
                   >
-                    Importar Arquivo (.vcf)
+                    <FileUp className="h-3.5 w-3.5" />
+                    <span>Importar Arquivo (.vcf)</span>
                   </button>
                 </div>
               </div>

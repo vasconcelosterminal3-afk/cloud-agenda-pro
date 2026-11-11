@@ -64,19 +64,19 @@ export const SecretVaultModal: React.FC<SecretVaultModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-fade-in">
+      <div className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl shadow-slate-900/10 dark:bg-[#0E121B] border border-slate-100 dark:border-white/[0.08] text-center">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+        <div className="flex items-center justify-between pb-3.5 border-b border-slate-100/80 dark:border-white/[0.06]">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
             <Lock className="h-4 w-4 text-amber-500" />
             <span>Cofre Secreto de Contatos</span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-white/[0.06] transition-colors"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4.5 w-4.5" />
           </button>
         </div>
 
@@ -183,13 +183,13 @@ export const SecretVaultModal: React.FC<SecretVaultModalProps> = ({
               </div>
             )}
 
-            {/* 10-Key Pad */}
+            {/* 10-Key Pad with Apple tactile feel */}
             <div className="grid grid-cols-3 gap-2.5 max-w-[240px] mx-auto pt-2">
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
                 <button
                   key={digit}
                   onClick={() => handleKeyClick(digit)}
-                  className="flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-base font-semibold text-slate-800 hover:bg-slate-100 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-white transition-all font-mono"
+                  className="flex h-12 items-center justify-center rounded-2xl border border-slate-200/70 bg-white text-base font-semibold text-slate-800 shadow-2xs hover:border-slate-300 hover:bg-slate-50 active:scale-95 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-white dark:hover:border-white/[0.16] transition-all duration-200 font-mono"
                 >
                   {digit}
                 </button>
@@ -197,13 +197,13 @@ export const SecretVaultModal: React.FC<SecretVaultModalProps> = ({
               <div />
               <button
                 onClick={() => handleKeyClick('0')}
-                className="flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-base font-semibold text-slate-800 hover:bg-slate-100 active:scale-95 dark:border-slate-700 dark:bg-slate-800 dark:text-white transition-all font-mono"
+                className="flex h-12 items-center justify-center rounded-2xl border border-slate-200/70 bg-white text-base font-semibold text-slate-800 shadow-2xs hover:border-slate-300 hover:bg-slate-50 active:scale-95 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-white dark:hover:border-white/[0.16] transition-all duration-200 font-mono"
               >
                 0
               </button>
               <button
                 onClick={handleBackspace}
-                className="flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 transition-all"
+                className="flex h-12 items-center justify-center rounded-2xl border border-slate-200/70 bg-white text-xs font-semibold text-slate-600 shadow-2xs hover:border-slate-300 hover:bg-slate-50 active:scale-95 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300 dark:hover:border-white/[0.16] transition-all duration-200"
               >
                 ←
               </button>
