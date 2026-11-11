@@ -1,0 +1,6 @@
+{
+  "name": "CloudAgenda Pro - Backup em Nuvem",
+  "description": "Plataforma premium para backup, sincronização contínua, restauração e gestão inteligente de agenda telefônica.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
