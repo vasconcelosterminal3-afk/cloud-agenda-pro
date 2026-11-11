@@ -482,7 +482,25 @@ export default function App() {
       finalContacts = [...contacts, ...imported];
     }
 
-    await persistContacts(finalContacts, `${imported.length} contatos sincronizados com a nuvem!`);
+    await persistContacts(finalContacts, `${imported.length} contatos sincronizados e salvos com segurança na nuvem!`);
+
+    // Create an automatic safety snapshot in the cloud
+    if (currentUser) {
+      const snap: CloudBackupSnapshot = {
+        id: 'snap_' + Date.now(),
+        label: `Importação Universal (${mode === 'replace' ? 'Substituição' : 'Mesclagem'}: ${imported.length} contatos)`,
+        createdAt: new Date().toLocaleString('pt-BR'),
+        contactCount: finalContacts.length,
+        sizeBytes: new Blob([JSON.stringify(finalContacts)]).size,
+        deviceOrigin: 'Importação Universal (Excel/Ctrl+V)',
+        checksum: 'E2EE-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        contacts: finalContacts,
+        isAutomatic: true,
+      };
+      const updatedSnapshots = [snap, ...snapshots];
+      setSnapshots(updatedSnapshots);
+      await saveCloudSnapshots(currentUser.uid, updatedSnapshots);
+    }
   };
 
   // Merge duplicates
