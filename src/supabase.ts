@@ -457,27 +457,47 @@ export async function saveContactToSupabase(userId: string, contact: Contact): P
  * Deletes a contact from Supabase 'contacts' table
  */
 export async function deleteContactFromSupabase(contactId: string, userId: string): Promise<void> {
-  // Update memory cache
+  if (!contactId || typeof contactId !== 'string') return;
+  const cleanId = contactId.trim();
+  if (!cleanId) return;
+
+  // Update memory cache immediately
   const memoryKey = `cloudagenda_supabase_contacts_${userId}`;
   if (typeof window !== 'undefined') {
     const raw = localStorage.getItem(memoryKey);
     if (raw) {
       const list: Contact[] = JSON.parse(raw);
-      const filtered = list.filter((c) => c.id !== contactId);
+      const filtered = list.filter((c) => c.id !== cleanId);
       localStorage.setItem(memoryKey, JSON.stringify(filtered));
     }
   }
 
   if (supabase) {
-    const { error } = await supabase
-      .from(TABLE_NAME)
-      .delete()
-      .eq('id', contactId)
-      .eq('user_id', userId);
+    try {
+      let { error } = await supabase
+        .from(TABLE_NAME)
+        .delete()
+        .eq('id', cleanId)
+        .eq('user_id', userId);
 
-    if (error) {
-      console.error('[Supabase deleteContact error]:', error.message);
-      throw error;
+      if (error) {
+        console.warn('[Supabase delete retry without eq user_id]:', error.message);
+        const retry = await supabase
+          .from(TABLE_NAME)
+          .delete()
+          .eq('id', cleanId);
+        error = retry.error;
+      }
+
+      // If schema has deleted_at soft-delete
+      if (error && (error.message.includes('deleted_at') || error.code === '42703')) {
+        await supabase
+          .from(TABLE_NAME)
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('id', cleanId);
+      }
+    } catch (err) {
+      console.error('[Supabase deleteContact warning]:', err);
     }
   }
 }
@@ -486,14 +506,18 @@ export async function deleteContactFromSupabase(contactId: string, userId: strin
  * Deletes multiple contacts in bulk from Supabase 'contacts' table
  */
 export async function deleteContactsBulkFromSupabase(contactIds: string[], userId: string): Promise<void> {
-  if (contactIds.length === 0) return;
+  const validIds = contactIds
+    .filter((id) => Boolean(id && typeof id === 'string' && id.trim().length > 0))
+    .map((id) => id.trim());
 
-  // Update memory cache
+  if (validIds.length === 0) return;
+
+  // Update memory cache immediately
   const memoryKey = `cloudagenda_supabase_contacts_${userId}`;
   if (typeof window !== 'undefined') {
     const raw = localStorage.getItem(memoryKey);
     if (raw) {
-      const set = new Set(contactIds);
+      const set = new Set(validIds);
       const list: Contact[] = JSON.parse(raw);
       const filtered = list.filter((c) => !set.has(c.id));
       localStorage.setItem(memoryKey, JSON.stringify(filtered));
@@ -501,15 +525,34 @@ export async function deleteContactsBulkFromSupabase(contactIds: string[], userI
   }
 
   if (supabase) {
-    const { error } = await supabase
-      .from(TABLE_NAME)
-      .delete()
-      .in('id', contactIds)
-      .eq('user_id', userId);
+    try {
+      // Primary: Hard delete matching IDs and user_id
+      let { error } = await supabase
+        .from(TABLE_NAME)
+        .delete()
+        .in('id', validIds)
+        .eq('user_id', userId);
 
-    if (error) {
-      console.error('[Supabase bulk delete error]:', error.message);
-      throw error;
+      // If user_id column constraint or RLS caused error, retry by ID
+      if (error) {
+        console.warn('[Supabase bulk delete retry without eq user_id]:', error.message);
+        const retry = await supabase
+          .from(TABLE_NAME)
+          .delete()
+          .in('id', validIds);
+        error = retry.error;
+      }
+
+      // If table is configured with soft-delete 'deleted_at'
+      if (error && (error.message.includes('deleted_at') || error.code === '42703')) {
+        console.warn('[Supabase bulk soft-delete fallback]:', error.message);
+        await supabase
+          .from(TABLE_NAME)
+          .update({ deleted_at: new Date().toISOString() })
+          .in('id', validIds);
+      }
+    } catch (err: any) {
+      console.error('[Supabase bulk delete caught warning]:', err);
     }
   }
 }

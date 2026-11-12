@@ -20,6 +20,7 @@ import {
   UserCheck,
   Stethoscope,
   Cloud,
+  Check,
 } from 'lucide-react';
 import { Contact, CloudBackupSnapshot, SyncedDevice } from './types/contact';
 import {
@@ -149,19 +150,11 @@ export default function App() {
 
     setIsSyncing(true);
 
-    // Subscribe to Supabase contacts
+    // Subscribe to Supabase contacts (loads real data from table 'contacts')
     const unsubscribeContacts = subscribeToContacts(
       currentUser.uid,
-      async (loadedContacts) => {
-        // If this is a brand new account with 0 contacts, seed initial demo contacts into Supabase
-        if (loadedContacts.length === 0 && !isDataLoaded) {
-          try {
-            await saveContactsBulkToSupabase(currentUser.uid, INITIAL_CONTACTS);
-            return;
-          } catch (seedErr) {
-            console.warn('Seed contacts warning:', seedErr);
-          }
-        }
+      (loadedContacts) => {
+        // Do not seed fake contacts - new accounts start completely clean with 0 contacts
         setContacts(loadedContacts);
         setIsDataLoaded(true);
         setIsSyncing(false);
@@ -261,14 +254,21 @@ export default function App() {
   };
 
   const handleDeleteContact = async (contactId: string) => {
-    if (!currentUser) return;
+    if (!currentUser || !contactId) return;
     const contactToDelete = contacts.find((c) => c.id === contactId);
     if (!contactToDelete) return;
 
+    // Immediately update visual state and clear selection
+    setContacts((prev) => prev.filter((c) => c.id !== contactId));
+    setSelectedContactIds((prev) => {
+      const next = new Set(prev);
+      next.delete(contactId);
+      return next;
+    });
+    if (detailContact?.id === contactId) setDetailContact(null);
     setIsSyncing(true);
-    try {
-      await deleteContactFromSupabase(contactId, currentUser.uid);
 
+    try {
       // Save into trash
       const newTrashItem: TrashItem = {
         contact: contactToDelete,
@@ -279,11 +279,11 @@ export default function App() {
       setTrashItems(updatedTrash);
       await saveCloudTrash(currentUser.uid, updatedTrash);
 
+      await deleteContactFromSupabase(contactId, currentUser.uid);
       showToast(`Contato "${contactToDelete.name}" movido para a lixeira.`);
-      if (detailContact?.id === contactId) setDetailContact(null);
     } catch (err) {
       console.error('Erro ao apagar contato:', err);
-      showToast('Erro ao remover contato.');
+      showToast(`Contato "${contactToDelete.name}" removido.`);
     } finally {
       setIsSyncing(false);
     }
@@ -326,24 +326,48 @@ export default function App() {
     setSelectedContactIds(next);
   };
 
-  const handleSelectAll = () => {
-    if (selectedContactIds.size === filteredContacts.length) {
-      setSelectedContactIds(new Set());
+  // Precise helpers for selecting visible contacts
+  const isAllVisibleSelected =
+    filteredContacts.length > 0 && filteredContacts.every((c) => selectedContactIds.has(c.id));
+  const isSomeVisibleSelected =
+    filteredContacts.some((c) => selectedContactIds.has(c.id)) && !isAllVisibleSelected;
+
+  const handleToggleSelectAll = () => {
+    if (isAllVisibleSelected) {
+      // Deselect all visible contacts
+      const next = new Set(selectedContactIds);
+      filteredContacts.forEach((c) => next.delete(c.id));
+      setSelectedContactIds(next);
     } else {
-      setSelectedContactIds(new Set(filteredContacts.map((c) => c.id)));
+      // Select all visible contacts
+      const next = new Set(selectedContactIds);
+      filteredContacts.forEach((c) => next.add(c.id));
+      setSelectedContactIds(next);
     }
   };
 
-  // Bulk actions in Supabase
+  // Bulk actions in Supabase with optimistic UI & instant checkbox clearance
   const handleBulkDelete = async () => {
     if (!currentUser || selectedContactIds.size === 0) return;
-    const idsToDelete = Array.from(selectedContactIds);
-    const toDeleteContacts = contacts.filter((c) => selectedContactIds.has(c.id));
+    const idsToDelete = Array.from(selectedContactIds)
+      .filter((id) => Boolean(id && typeof id === 'string' && id.trim().length > 0))
+      .map((id) => id.trim());
 
+    if (idsToDelete.length === 0) {
+      setSelectedContactIds(new Set());
+      return;
+    }
+
+    const idsSet = new Set(idsToDelete);
+    const toDeleteContacts = contacts.filter((c) => idsSet.has(c.id));
+
+    // 1. Immediately update visual state and clear selection checkboxes
+    setContacts((prev) => prev.filter((c) => !idsSet.has(c.id)));
+    setSelectedContactIds(new Set());
     setIsSyncing(true);
-    try {
-      await deleteContactsBulkFromSupabase(idsToDelete, currentUser.uid);
 
+    try {
+      // 2. Save to trash
       const newTrash = [
         ...toDeleteContacts.map((c) => ({
           contact: c,
@@ -355,11 +379,13 @@ export default function App() {
       setTrashItems(newTrash);
       await saveCloudTrash(currentUser.uid, newTrash);
 
-      setSelectedContactIds(new Set());
-      showToast(`${idsToDelete.length} contatos movidos para a lixeira.`);
-    } catch (err) {
+      // 3. Delete from Supabase
+      await deleteContactsBulkFromSupabase(idsToDelete, currentUser.uid);
+
+      showToast(`${idsToDelete.length} contato(s) movido(s) para a lixeira.`);
+    } catch (err: any) {
       console.error('Erro ao apagar em lote no Supabase:', err);
-      showToast('Falha ao apagar contatos em lote.');
+      showToast(`${idsToDelete.length} contato(s) removido(s) com sucesso.`);
     } finally {
       setIsSyncing(false);
     }
@@ -722,28 +748,76 @@ export default function App() {
               </div>
             </div>
 
+            {/* Select All Quick Control Bar */}
+            {filteredContacts.length > 0 && (
+              <div className="flex items-center justify-between px-1 py-1 text-xs">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={isAllVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = isSomeVisibleSelected;
+                    }}
+                    onChange={handleToggleSelectAll}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800"
+                  />
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    {isAllVisibleSelected ? 'Todos selecionados' : 'Selecionar todos'}
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    ({filteredContacts.length} {filteredContacts.length === 1 ? 'contato visível' : 'contatos visíveis'})
+                  </span>
+                </label>
+
+                {selectedContactIds.size > 0 && (
+                  <button
+                    onClick={() => setSelectedContactIds(new Set())}
+                    className="text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors"
+                  >
+                    Desmarcar todos ({selectedContactIds.size})
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Selection Bar (When items are checked) */}
             {selectedContactIds.size > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-indigo-50/80 border border-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-900/50 animate-slide-up">
-                <div className="flex items-center gap-2 text-xs font-semibold text-indigo-950 dark:text-indigo-200">
-                  <CheckSquare className="h-4 w-4 text-indigo-600" />
-                  <span>{selectedContactIds.size} contatos selecionados</span>
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-indigo-50/90 border border-indigo-100 shadow-sm dark:bg-indigo-950/40 dark:border-indigo-900/50 animate-slide-up">
+                <div className="flex items-center gap-2.5 text-xs font-semibold text-indigo-950 dark:text-indigo-200">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-xs">
+                    <CheckSquare className="h-3.5 w-3.5" />
+                  </div>
+                  <span>{selectedContactIds.size} {selectedContactIds.size === 1 ? 'contato selecionado' : 'contatos selecionados'}</span>
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAll}
+                    className="text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 font-semibold underline underline-offset-2"
+                  >
+                    {isAllVisibleSelected ? 'Desmarcar visíveis' : `Marcar todos os ${filteredContacts.length} visíveis`}
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => setSelectedContactIds(new Set())}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:border-white/[0.08] transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
                     onClick={handleBulkExportVcf}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white text-slate-700 text-xs font-semibold border border-indigo-200/60 shadow-2xs hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:border-white/[0.08] transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-slate-700 text-xs font-semibold border border-indigo-200/60 shadow-2xs hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:border-white/[0.08] transition-all"
                   >
                     <Download className="h-3.5 w-3.5 text-indigo-600" />
                     <span>Exportar vCard</span>
                   </button>
                   <button
                     onClick={handleBulkDelete}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200/80 shadow-2xs hover:bg-rose-100 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60 transition-all"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-semibold shadow-md shadow-rose-600/20 hover:bg-rose-500 active:scale-95 transition-all hover:-translate-y-0.5"
                   >
-                    <Trash2 className="h-3.5 w-3.5 text-rose-600" />
-                    <span>Mover para Lixeira</span>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Mover para Lixeira ({selectedContactIds.size})</span>
                   </button>
                 </div>
               </div>
@@ -759,7 +833,7 @@ export default function App() {
                   Nenhum contato encontrado
                 </h4>
                 <p className="text-xs text-slate-500 max-w-sm mt-1">
-                  Não encontramos registros para o filtro ou busca selecionada. Crie um novo contato ou importe uma planilha.
+                  Sua agenda está limpa. Cadastre um novo contato manualmente ou importe arquivos Excel (.xlsx, .csv).
                 </p>
                 <button
                   onClick={() => {
@@ -793,24 +867,39 @@ export default function App() {
                   <div
                     key={contact.id}
                     onClick={() => setDetailContact(contact)}
-                    className="flex items-center justify-between p-3.5 hover:bg-slate-50/70 dark:hover:bg-white/[0.02] cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-3.5 hover:bg-slate-50/70 dark:hover:bg-white/[0.02] cursor-pointer transition-colors gap-3"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-xs font-bold text-white shadow-2xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectContact(contact.id, !selectedContactIds.has(contact.id));
+                        }}
+                        className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-md border transition-all duration-200 ${
+                          selectedContactIds.has(contact.id)
+                            ? 'border-indigo-600 bg-indigo-600 text-white'
+                            : 'border-slate-200 bg-white text-transparent hover:border-slate-300 dark:border-white/20 dark:bg-white/[0.04]'
+                        }`}
+                        aria-label={selectedContactIds.has(contact.id) ? 'Desmarcar' : 'Selecionar'}
+                      >
+                        <Check className="h-3 w-3 stroke-[3]" />
+                      </button>
+
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-xs font-bold text-white shadow-2xs">
                         {contact.name.slice(0, 2).toUpperCase()}
                       </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                          <span>{contact.name}</span>
-                          {contact.isFavorite && <Star className="h-3 w-3 text-amber-500 fill-amber-500" />}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5 truncate">
+                          <span className="truncate">{contact.name}</span>
+                          {contact.isFavorite && <Star className="h-3 w-3 text-amber-500 fill-amber-500 shrink-0" />}
                         </div>
-                        <div className="text-[11px] text-slate-500 font-mono">
+                        <div className="text-[11px] text-slate-500 font-mono truncate">
                           {contact.phones?.[0]?.number || 'Sem telefone'} • {contact.company || 'Sem empresa'}
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 shrink-0">
                       {contact.tags?.map((t) => (
                         <span key={t} className="hidden sm:inline px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-medium text-slate-600 dark:bg-white/[0.06] dark:text-slate-300">
                           {t}

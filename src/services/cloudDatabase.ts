@@ -386,15 +386,13 @@ export async function loadCloudContacts(userId: string): Promise<Contact[]> {
         }
       }
 
-      // If user has no contacts yet, seed with INITIAL_CONTACTS
-      await saveCloudContacts(userId, INITIAL_CONTACTS);
-      return INITIAL_CONTACTS;
+      return [];
     }
   } catch (err) {
     console.error('Erro ao ler contatos do cofre:', err);
   }
 
-  return INITIAL_CONTACTS;
+  return [];
 }
 
 /**

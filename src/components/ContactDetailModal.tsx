@@ -41,6 +41,11 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
   onOpenQr,
 }) => {
   const [copiedField, setCopiedField] = React.useState<string | null>(null);
+  const [avatarError, setAvatarError] = React.useState(false);
+
+  React.useEffect(() => {
+    setAvatarError(false);
+  }, [contact?.avatarUrl]);
 
   if (!contact) return null;
 
@@ -153,11 +158,12 @@ export const ContactDetailModal: React.FC<ContactDetailModalProps> = ({
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-start gap-4">
             <div className="relative shrink-0">
-              {contact.avatarUrl ? (
+              {contact.avatarUrl && !avatarError ? (
                 <img
                   src={contact.avatarUrl}
                   alt={contact.name}
                   referrerPolicy="no-referrer"
+                  onError={() => setAvatarError(true)}
                   className="h-20 w-20 rounded-2xl object-cover ring-2 ring-white/80 dark:ring-slate-800 shadow-md"
                 />
               ) : (

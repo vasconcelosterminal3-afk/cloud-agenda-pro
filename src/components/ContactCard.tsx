@@ -46,6 +46,11 @@ export const ContactCard: React.FC<ContactCardProps> = ({
   onToggleFavorite,
 }) => {
   const [hasCopied, setHasCopied] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
+
+  React.useEffect(() => {
+    setAvatarError(false);
+  }, [contact.avatarUrl]);
 
   const primaryPhone = contact.phones[0]?.number || '';
   const primaryEmail = contact.emails[0]?.email || '';
@@ -147,11 +152,12 @@ export const ContactCard: React.FC<ContactCardProps> = ({
         className="mt-2.5 flex cursor-pointer items-center gap-3.5"
       >
         <div className="relative shrink-0">
-          {contact.avatarUrl ? (
+          {contact.avatarUrl && !avatarError ? (
             <img
               src={contact.avatarUrl}
               alt={contact.name}
               referrerPolicy="no-referrer"
+              onError={() => setAvatarError(true)}
               className="h-12 w-12 rounded-full object-cover ring-2 ring-white/80 dark:ring-slate-800 shadow-sm"
             />
           ) : (
