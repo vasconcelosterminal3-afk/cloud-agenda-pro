@@ -14,10 +14,14 @@ import {
   LogOut,
   User,
 } from 'lucide-react';
-import { CloudUser } from '../services/cloudDatabase';
+export interface NavbarUser {
+  uid: string;
+  email: string;
+  displayName?: string;
+}
 
 interface NavbarProps {
-  user: CloudUser | null;
+  user: NavbarUser | null;
   onLogout: () => void;
   activeTab: 'contacts' | 'backups' | 'duplicates' | 'devices' | 'trash';
   setActiveTab: (tab: 'contacts' | 'backups' | 'duplicates' | 'devices' | 'trash') => void;

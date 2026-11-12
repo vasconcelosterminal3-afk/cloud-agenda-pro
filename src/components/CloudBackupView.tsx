@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Cloud,
   ShieldCheck,
@@ -16,6 +16,10 @@ import {
   Radio,
   FileCode,
   FileSpreadsheet,
+  Upload,
+  AlertCircle,
+  FileDown,
+  Sparkles,
 } from 'lucide-react';
 import { Contact, CloudBackupSnapshot } from '../types/contact';
 import { generateBulkVCards, generateCsv, downloadFile } from '../utils/vcard';
@@ -28,6 +32,7 @@ interface CloudBackupViewProps {
   onRestoreSnapshot: (snapshot: CloudBackupSnapshot) => void;
   onInspectDiff: (snapshot: CloudBackupSnapshot) => void;
   onDeleteSnapshot: (snapshotId: string) => void;
+  onRestoreJsonBackup: (importedContacts: Contact[]) => Promise<{ addedCount: number; skippedCount: number }>;
 }
 
 export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
@@ -38,31 +43,83 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
   onRestoreSnapshot,
   onInspectDiff,
   onDeleteSnapshot,
+  onRestoreJsonBackup,
 }) => {
   const [newSnapshotLabel, setNewSnapshotLabel] = useState('');
-  const [syncFrequency, setSyncFrequency] = useState<'realtime' | '1h' | 'daily' | 'manual'>('realtime');
   const [isCreatingManual, setIsCreatingManual] = useState(false);
+  const [restoreFeedback, setRestoreFeedback] = useState<string | null>(null);
+  const [isRestoringJson, setIsRestoringJson] = useState(false);
 
-  const totalBytes = snapshots.reduce((acc, s) => acc + s.sizeBytes, 0);
-  const formattedStorage = (totalBytes / 1024).toFixed(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Download complete JSON backup file (Requirement 3: "Fazer Backup Agora (Baixar Arquivo)")
+  const handleDownloadFullBackupJson = () => {
+    const backupData = {
+      app: 'CloudAgenda Pro',
+      version: '4.5.0',
+      exportedAt: new Date().toISOString(),
+      encryption: 'AES-256-GCM / Firebase Cloud',
+      totalContacts: contacts.length,
+      contacts: contacts.map((c) => ({
+        id: c.id,
+        name: c.name,
+        nickname: c.nickname || '',
+        company: c.company || '',
+        jobTitle: c.jobTitle || '',
+        phones: c.phones || [],
+        emails: c.emails || [],
+        address: c.address || {},
+        tags: c.tags || [],
+        notes: c.notes || '',
+        isFavorite: Boolean(c.isFavorite),
+        isEmergencyIce: Boolean(c.isEmergencyIce),
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      })),
+    };
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const filename = `cloudagenda_backup_${dateStr}.json`;
+    downloadFile(JSON.stringify(backupData, null, 2), filename, 'application/json');
+  };
+
+  // Restore Backup from .json (Requirement 3: "Restaurar Backup")
+  const handleFileRestore = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsRestoringJson(true);
+    setRestoreFeedback(null);
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const rawList = Array.isArray(parsed) ? parsed : parsed.contacts || [];
+
+      if (!Array.isArray(rawList) || rawList.length === 0) {
+        setRestoreFeedback('Erro: O arquivo selecionado não contém uma lista válida de contatos.');
+        setIsRestoringJson(false);
+        return;
+      }
+
+      const res = await onRestoreJsonBackup(rawList);
+      setRestoreFeedback(
+        `Restauração concluída com sucesso! ${res.addedCount} novos contatos gravados no Firebase (${res.skippedCount} contatos já existentes foram preservados sem duplicação).`
+      );
+    } catch (err: any) {
+      console.error('Falha ao restaurar arquivo JSON:', err);
+      setRestoreFeedback('Erro ao ler o arquivo JSON. Certifique-se de selecionar um backup válido do CloudAgenda.');
+    } finally {
+      setIsRestoringJson(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const handleCreateSnapshot = (e: React.FormEvent) => {
     e.preventDefault();
     onTriggerBackup(newSnapshotLabel.trim() || undefined);
     setNewSnapshotLabel('');
     setIsCreatingManual(false);
-  };
-
-  const handleDownloadSnapshotVCard = (snapshot: CloudBackupSnapshot) => {
-    const vcf = generateBulkVCards(snapshot.contacts);
-    const filename = `backup_${snapshot.label.toLowerCase().replace(/[^a-z0-9]/g, '_')}.vcf`;
-    downloadFile(vcf, filename, 'text/vcard');
-  };
-
-  const handleDownloadSnapshotJson = (snapshot: CloudBackupSnapshot) => {
-    const jsonStr = JSON.stringify(snapshot, null, 2);
-    const filename = `backup_cloudagenda_${snapshot.id}.json`;
-    downloadFile(jsonStr, filename, 'application/json');
   };
 
   return (
@@ -74,65 +131,85 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
                 <ShieldCheck className="h-4 w-4" />
-                Cofre em Nuvem Ativo & Protegido
+                Firebase Cloud Firestore Ativo
               </span>
               <span className="text-xs text-slate-400 font-mono">
-                Criptografia AES-256 E2EE
+                Persistência Permanente & Real-time
               </span>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Central de Backup & Restauração
+              Backup & Segurança da Agenda
             </h1>
             <p className="max-w-2xl text-xs md:text-sm text-slate-300 font-normal leading-relaxed">
-              Sua agenda telefônica é sincronizada continuamente em nuvem segura. Crie pontos de restauração antes de viagens ou alterações, compare alterações e recupere contatos apagados com 1 clique.
+              Todos os seus contatos são sincronizados continuamente no Cloud Firestore com vínculo seguro ao seu UID de usuário. Exporte backups offline em JSON ou restaure sem duplicar dados.
             </p>
           </div>
 
+          {/* Primary Action Buttons */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+            {/* Button 1: Fazer Backup Agora (Baixar Arquivo) */}
             <button
-              onClick={() => setIsCreatingManual(true)}
-              className="flex items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/20 transition-all duration-300 hover:-translate-y-0.5"
+              onClick={handleDownloadFullBackupJson}
+              className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-98 transition-all duration-200 hover:-translate-y-0.5"
             >
-              <Plus className="h-4 w-4" />
-              <span>Criar Ponto Manual</span>
+              <FileDown className="h-4 w-4" />
+              <span>Fazer Backup Agora (Baixar Arquivo)</span>
             </button>
 
+            {/* Button 2: Restaurar Backup */}
             <button
-              onClick={() => onTriggerBackup()}
-              disabled={isSyncing}
-              className="flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2 text-xs font-semibold text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-98 disabled:opacity-50 transition-all duration-300 hover:-translate-y-0.5"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isRestoringJson}
+              className="flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/20 active:scale-98 transition-all duration-200 hover:-translate-y-0.5"
             >
-              <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span>{isSyncing ? 'Sincronizando Nuvem...' : 'Sincronizar Nuvem Agora'}</span>
+              <Upload className="h-4 w-4" />
+              <span>{isRestoringJson ? 'Restaurando...' : 'Restaurar Backup'}</span>
             </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleFileRestore}
+              className="hidden"
+            />
           </div>
         </div>
+
+        {/* Feedback alert */}
+        {restoreFeedback && (
+          <div className="mt-6 flex items-center gap-2 rounded-2xl bg-white/10 p-4 border border-white/15 text-xs text-emerald-300 backdrop-blur-md animate-slide-up">
+            <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
+            <span>{restoreFeedback}</span>
+          </div>
+        )}
 
         {/* Cloud Stats strip */}
         <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-white/10 pt-6 text-xs">
           <div>
-            <div className="text-slate-400">Pontos de Restauração</div>
+            <div className="text-slate-400">Contatos no Firestore</div>
             <div className="mt-1 text-lg font-bold font-mono tabular-nums">
-              {snapshots.length} snapshots
+              {contacts.length} contatos
             </div>
           </div>
           <div>
-            <div className="text-slate-400">Contatos no Ponto Atual</div>
+            <div className="text-slate-400">Pontos de Snapshot</div>
             <div className="mt-1 text-lg font-bold font-mono tabular-nums">
-              {contacts.length} registros
+              {snapshots.length} versões
             </div>
           </div>
           <div>
-            <div className="text-slate-400">Espaço Nuvem Utilizado</div>
-            <div className="mt-1 text-lg font-bold font-mono tabular-nums">
-              {formattedStorage} KB / 50 GB
-            </div>
-          </div>
-          <div>
-            <div className="text-slate-400">Frequência de Auto-Sync</div>
+            <div className="text-slate-400">Status de Sincronização</div>
             <div className="mt-1 text-emerald-400 font-semibold flex items-center gap-1.5">
               <Radio className="h-3.5 w-3.5 animate-pulse" />
-              <span>Tempo Real Ativo</span>
+              <span>Nuvem em Tempo Real</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-slate-400">Prevenção de Duplicatas</div>
+            <div className="mt-1 text-sky-400 font-semibold flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Ativa na Restauração</span>
             </div>
           </div>
         </div>
@@ -142,7 +219,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
       {isCreatingManual && (
         <form
           onSubmit={handleCreateSnapshot}
-          className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-5 dark:border-indigo-900/60 dark:bg-indigo-950/20 animate-fade-in"
+          className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-5 dark:border-indigo-900/60 dark:bg-indigo-950/20 animate-fade-in"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex-1">
@@ -156,112 +233,96 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
                 value={newSnapshotLabel}
                 onChange={(e) => setNewSnapshotLabel(e.target.value)}
                 placeholder="Ex: Backup Antes da Troca de Aparelho, Viagem aos EUA, etc."
-                className="mt-1.5 w-full rounded-lg border border-indigo-200 bg-white px-3.5 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-indigo-800 dark:bg-slate-900 dark:text-white"
+                className="mt-1.5 w-full rounded-xl border border-indigo-200 bg-white px-3.5 py-2 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none dark:border-indigo-800 dark:bg-slate-900 dark:text-white"
               />
             </div>
             <div className="flex items-center gap-2 self-end sm:self-auto pt-2">
               <button
                 type="button"
                 onClick={() => setIsCreatingManual(false)}
-                className="rounded-lg border border-slate-200 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-white dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500"
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 shadow-sm"
               >
-                Salvar Snapshot na Nuvem
+                Salvar Snapshot
               </button>
             </div>
           </div>
         </form>
       )}
 
-      {/* Cloud Configuration Options */}
+      {/* Backup and Export Options Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="rounded-2xl border border-slate-100/90 bg-white p-6 dark:border-white/[0.06] dark:bg-[#0E121B] shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-            <RefreshCw className="h-4 w-4 text-indigo-500" />
-            <span>Frequência de Backup</span>
+        {/* Card 1: JSON Full Backup */}
+        <div className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-6 dark:border-white/[0.06] dark:bg-[#0E121B] shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+              <FileCode className="h-4 w-4 text-purple-500" />
+              <span>Backup Integral em JSON</span>
+            </div>
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+              Arquivo estruturado com todos os contatos ({contacts.length}), telefones, e-mails, tags e anotações.
+            </p>
           </div>
-          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-            Com que frequência o aplicativo deve registrar novos snapshots automáticos.
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-1.5">
-            {[
-              { id: 'realtime', label: 'Tempo Real' },
-              { id: '1h', label: 'A cada 1h' },
-              { id: 'daily', label: 'Diário' },
-              { id: 'manual', label: 'Manual' },
-            ].map((opt) => (
-              <button
-                key={opt.id}
-                onClick={() => setSyncFrequency(opt.id as any)}
-                className={`rounded-xl py-1.5 text-xs font-medium transition-all duration-200 ${
-                  syncFrequency === opt.id
-                    ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
-                    : 'border border-slate-200/70 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={handleDownloadFullBackupJson}
+            className="mt-4 flex items-center justify-center gap-1.5 rounded-xl bg-purple-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-purple-500 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Baixar Arquivo .JSON</span>
+          </button>
         </div>
 
-        <div className="rounded-2xl border border-slate-100/90 bg-white p-6 dark:border-white/[0.06] dark:bg-[#0E121B] shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-            <ShieldCheck className="h-4 w-4 text-emerald-500" />
-            <span>Segurança & Integridade</span>
+        {/* Card 2: vCard .vcf */}
+        <div className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-6 dark:border-white/[0.06] dark:bg-[#0E121B] shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+              <Smartphone className="h-4 w-4 text-indigo-500" />
+              <span>vCard Universal (.vcf)</span>
+            </div>
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+              Padrão universal compatível com iPhone (Apple Contacts), Android (Google), Outlook e Mac.
+            </p>
           </div>
-          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-            Validação de integridade via checksum SHA-256 e redundância em nuvem.
-          </p>
-          <div className="mt-4 space-y-2 text-xs text-slate-600 dark:text-slate-400">
-            <div className="flex items-center justify-between">
-              <span>Algoritmo de Hash:</span>
-              <span className="font-mono text-slate-900 dark:text-white">SHA-256</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Protocolo:</span>
-              <span className="font-mono text-slate-900 dark:text-white">TLS 1.3 / E2EE</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Status dos Dados:</span>
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">100% Íntegro</span>
-            </div>
-          </div>
+          <button
+            onClick={() => {
+              const vcf = generateBulkVCards(contacts);
+              const dateStr = new Date().toISOString().split('T')[0];
+              downloadFile(vcf, `agenda_vcard_${dateStr}.vcf`, 'text/vcard');
+            }}
+            className="mt-4 flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Baixar Arquivo .VCF</span>
+          </button>
         </div>
 
-        <div className="rounded-2xl border border-slate-100/90 bg-white p-6 dark:border-white/[0.06] dark:bg-[#0E121B] shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-            <HardDrive className="h-4 w-4 text-sky-500" />
-            <span>Compatibilidade Universal</span>
+        {/* Card 3: Excel CSV */}
+        <div className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-6 dark:border-white/[0.06] dark:bg-[#0E121B] shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
+              <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+              <span>Planilha Google & Excel (.csv)</span>
+            </div>
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+              Planilha estruturada com colunas separadas para importar no Google Contatos ou analisar no Excel.
+            </p>
           </div>
-          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-            Exporte snapshots em formatos nativos para qualquer telefone ou computador.
-          </p>
-          <div className="mt-4 flex items-center gap-2">
-            <button
-              onClick={() => {
-                const vcf = generateBulkVCards(contacts);
-                downloadFile(vcf, 'minha_agenda_completa.vcf', 'text/vcard');
-              }}
-              className="flex-1 rounded-xl border border-slate-200/70 bg-white py-2 text-center text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300 transition-all duration-300 hover:-translate-y-0.5"
-            >
-              Baixar .VCF
-            </button>
-            <button
-              onClick={() => {
-                const csv = generateCsv(contacts);
-                downloadFile(csv, 'minha_agenda_google.csv', 'text/csv');
-              }}
-              className="flex-1 rounded-xl border border-slate-200/70 bg-white py-2 text-center text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300 transition-all duration-300 hover:-translate-y-0.5"
-            >
-              Baixar .CSV
-            </button>
-          </div>
+          <button
+            onClick={() => {
+              const csv = generateCsv(contacts);
+              const dateStr = new Date().toISOString().split('T')[0];
+              downloadFile(csv, `agenda_excel_${dateStr}.csv`, 'text/csv');
+            }}
+            className="mt-4 flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Baixar Planilha .CSV</span>
+          </button>
         </div>
       </div>
 
@@ -276,126 +337,71 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
               Selecione qualquer momento anterior para restaurar contatos ou inspecionar diferenças (Diff).
             </p>
           </div>
-          <span className="text-xs font-mono text-slate-400">
-            {snapshots.length} versões salvas
-          </span>
+          <button
+            onClick={() => setIsCreatingManual(true)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Novo Ponto</span>
+          </button>
         </div>
 
-        <div className="space-y-3">
-          {snapshots.map((snap, index) => {
-            const dateObj = new Date(snap.createdAt);
-            const dateStr = dateObj.toLocaleDateString('pt-BR', {
-              day: '2-digit',
-              month: 'long',
-              year: 'numeric',
-            });
-            const timeStr = dateObj.toLocaleTimeString('pt-BR', {
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-            const sizeKb = (snap.sizeBytes / 1024).toFixed(1);
-
-            return (
+        {snapshots.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-xs text-slate-500 dark:border-white/[0.06] dark:bg-[#0E121B]">
+            Nenhum snapshot manual registrado ainda. Crie um ponto antes de realizar grandes importações ou edições.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {snapshots.map((snap) => (
               <div
                 key={snap.id}
-                className="group flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-2xl border border-slate-100/90 bg-white p-5 shadow-2xs hover:shadow-md transition-all duration-300 hover:-translate-y-0.5 dark:border-white/[0.06] dark:bg-[#0E121B]"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-slate-100 bg-white shadow-2xs hover:shadow-sm dark:border-white/[0.06] dark:bg-[#0E121B] transition-all"
               >
-                {/* Left Info */}
-                <div className="flex items-start gap-3.5">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-50 text-slate-600 dark:bg-white/[0.04] dark:text-slate-300">
-                    {snap.deviceOrigin.toLowerCase().includes('iphone') ? (
-                      <Smartphone className="h-5 w-5 text-indigo-500" />
-                    ) : snap.deviceOrigin.toLowerCase().includes('macbook') ? (
-                      <Laptop className="h-5 w-5 text-sky-500" />
-                    ) : (
-                      <Cloud className="h-5 w-5 text-indigo-500" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-900 dark:text-white">
+                      {snap.label}
+                    </span>
+                    {snap.isAutomatic && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-400 font-medium">
+                        Auto
+                      </span>
                     )}
                   </div>
-
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                        {snap.label}
-                      </h3>
-                      {snap.isAutomatic && (
-                        <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-white/[0.06] dark:text-slate-400">
-                          Automático
-                        </span>
-                      )}
-                      {index === 0 && (
-                        <span className="rounded-md border border-indigo-200/60 bg-indigo-50/80 px-2 py-0.5 text-[10px] font-semibold text-indigo-600 dark:border-indigo-800/40 dark:bg-indigo-950/60 dark:text-indigo-400">
-                          Mais Recente
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-mono tabular-nums">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-slate-400" />
-                        {dateStr} às {timeStr}
-                      </span>
-                      <span>·</span>
-                      <span>{snap.contactCount} contatos</span>
-                      <span>·</span>
-                      <span>{sizeKb} KB</span>
-                      <span>·</span>
-                      <span className="truncate max-w-xs">{snap.deviceOrigin}</span>
-                    </div>
-
-                    <div className="mt-1 text-[11px] text-slate-400 font-mono truncate max-w-md">
-                      Hash: {snap.checksum}
-                    </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {snap.createdAt} • {snap.contactCount} contatos • Checksum: <code className="font-mono text-[10px]">{snap.checksum}</code>
                   </div>
                 </div>
 
-                {/* Right Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => onInspectDiff(snap)}
-                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-3.5 py-1.5 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300 transition-all duration-300 hover:-translate-y-0.5"
-                    title="Comparar contatos atuais com este backup"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-medium text-slate-700 hover:bg-slate-100 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-300 transition-colors"
                   >
                     <GitCompare className="h-3.5 w-3.5 text-indigo-500" />
-                    <span>Ver Diff</span>
+                    <span>Comparar</span>
                   </button>
 
                   <button
                     onClick={() => onRestoreSnapshot(snap)}
-                    className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 shadow-sm shadow-indigo-600/20 transition-all duration-300 hover:-translate-y-0.5"
-                    title="Restaurar toda a agenda para este ponto"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-600 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition-colors"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                     <span>Restaurar</span>
                   </button>
 
-                  <div className="flex items-center border-l border-slate-200/60 pl-2 dark:border-white/[0.08]">
-                    <button
-                      onClick={() => handleDownloadSnapshotVCard(snap)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                      title="Baixar vCard (.vcf)"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDownloadSnapshotJson(snap)}
-                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                      title="Baixar JSON criptografado"
-                    >
-                      <FileCode className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => onDeleteSnapshot(snap.id)}
-                      className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
-                      title="Excluir este snapshot"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => onDeleteSnapshot(snap.id)}
+                    className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                    title="Excluir Ponto"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

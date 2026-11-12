@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Phone,
   MessageSquare,
@@ -9,6 +9,8 @@ import {
   Building2,
   Check,
   ChevronRight,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { Contact } from '../types/contact';
 import { formatPhoneNumber, getWhatsAppUrl, getTelUrl } from '../utils/phoneFormatter';
@@ -23,7 +25,7 @@ interface ContactCardProps {
   onDelete: (contact: Contact) => void;
 }
 
-// Sophisticated vibrant gradients for avatar initials (Vercel/Linear style)
+// Vibrant refined gradient palettes for avatar initials
 const GRADIENT_PALETTES = [
   'from-indigo-500 via-purple-500 to-pink-500',
   'from-blue-600 via-indigo-500 to-violet-500',
@@ -42,13 +44,21 @@ export const ContactCard: React.FC<ContactCardProps> = ({
   onOpenDetails,
   onOpenQr,
   onToggleFavorite,
-  onDelete,
 }) => {
+  const [hasCopied, setHasCopied] = useState(false);
+
   const primaryPhone = contact.phones[0]?.number || '';
   const primaryEmail = contact.emails[0]?.email || '';
   const formattedPhone = formatPhoneNumber(primaryPhone);
-  const whatsappUrl = getWhatsAppUrl(primaryPhone);
-  const telUrl = getTelUrl(primaryPhone);
+  
+  // Clean phone digits for WhatsApp wa.me link
+  const rawDigits = primaryPhone.replace(/\D/g, '');
+  const cleanWhatsAppNumber = rawDigits.startsWith('55')
+    ? rawDigits
+    : rawDigits.length >= 10
+    ? `55${rawDigits}`
+    : rawDigits;
+  const whatsappUrl = `https://wa.me/${cleanWhatsAppNumber}`;
 
   const getInitials = (name: string) => {
     const parts = name.trim().split(' ');
@@ -56,7 +66,16 @@ export const ContactCard: React.FC<ContactCardProps> = ({
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };
 
-  // Deterministic vibrant gradient based on contact id/name hash
+  const handleCopyPhone = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!primaryPhone) return;
+
+    navigator.clipboard.writeText(formattedPhone || primaryPhone);
+    setHasCopied(true);
+    setTimeout(() => setHasCopied(false), 2000);
+  };
+
+  // Deterministic gradient based on contact id/name hash
   const gradientClass = React.useMemo(() => {
     let hash = 0;
     const str = contact.id + contact.name;
@@ -104,6 +123,7 @@ export const ContactCard: React.FC<ContactCardProps> = ({
             </span>
           )}
 
+          {/* Favoritar button */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -201,7 +221,7 @@ export const ContactCard: React.FC<ContactCardProps> = ({
         )}
       </div>
 
-      {/* Clean Unboxed Tags line with typographic separator */}
+      {/* Clean Tags */}
       {contact.tags && contact.tags.length > 0 && (
         <div className="mt-3.5 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 truncate">
           {contact.tags.map((tag, idx) => (
@@ -213,45 +233,65 @@ export const ContactCard: React.FC<ContactCardProps> = ({
         </div>
       )}
 
-      {/* Bottom Action Footer with smooth micro-interactions */}
+      {/* Action Footer: WhatsApp, Copiar Telefone, QR Code & Detalhes */}
       <div className="mt-4.5 flex items-center justify-between border-t border-slate-100/90 pt-3 dark:border-white/[0.06]">
         <div className="flex items-center gap-1">
-          {primaryPhone && (
-            <>
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                title="Conversar no WhatsApp"
-                className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40 transition-all duration-200 hover:-translate-y-0.5"
-              >
-                <MessageSquare className="h-3.5 w-3.5" />
-              </a>
+          {/* Quick Action 1: Abrir no WhatsApp */}
+          {primaryPhone ? (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title="Abrir no WhatsApp"
+              className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40 transition-all duration-200 hover:-translate-y-0.5"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+            </a>
+          ) : null}
 
-              <a
-                href={telUrl}
-                onClick={(e) => e.stopPropagation()}
-                title="Ligar para contato"
-                className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/40 transition-all duration-200 hover:-translate-y-0.5"
+          {/* Quick Action 2: Copiar Telefone (com feedback visual) */}
+          {primaryPhone ? (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={handleCopyPhone}
+                title="Copiar Telefone"
+                className={`flex h-7.5 items-center gap-1 rounded-lg px-2 text-xs transition-all duration-200 hover:-translate-y-0.5 ${
+                  hasCopied
+                    ? 'bg-emerald-500 text-white font-bold'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-white'
+                }`}
               >
-                <Phone className="h-3.5 w-3.5" />
-              </a>
-            </>
-          )}
+                {hasCopied ? (
+                  <>
+                    <Check className="h-3 w-3 stroke-[3]" />
+                    <span className="text-[10px]">Copiado!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5" />
+                    <span className="text-[10px] hidden sm:inline">Copiar</span>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : null}
 
+          {/* Quick Action 3: QR Code vCard */}
           <button
             onClick={(e) => {
               e.stopPropagation();
               onOpenQr(contact);
             }}
-            title="QR Code vCard para Celular"
+            title="QR Code vCard Universal para Câmera"
             className="flex h-7.5 w-7.5 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-white/[0.08] dark:hover:text-white transition-all duration-200 hover:-translate-y-0.5"
           >
             <QrCode className="h-3.5 w-3.5" />
           </button>
         </div>
 
+        {/* Detalhes */}
         <button
           onClick={() => onOpenDetails(contact)}
           className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors"

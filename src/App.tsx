@@ -19,17 +19,21 @@ import {
   Heart,
   UserCheck,
   Stethoscope,
+  Cloud,
 } from 'lucide-react';
 import { Contact, CloudBackupSnapshot, SyncedDevice } from './types/contact';
 import {
-  CloudUser,
-  getCurrentCloudUser,
-  silentCloudLogin,
-  FIXED_USER_EMAIL,
-  FIXED_USER_PASSWORD,
-  FIXED_USER_NAME,
-  loadCloudContacts,
-  saveCloudContacts,
+  AppUser,
+  subscribeToAuth,
+  logoutFromFirebase,
+  subscribeToContacts,
+  saveContactToFirestore,
+  deleteContactFromFirestore,
+  deleteContactsBulkFromFirestore,
+  saveContactsBulkToFirestore,
+  restoreBackupIntoFirestore,
+} from './firebase';
+import {
   loadCloudSnapshots,
   saveCloudSnapshots,
   loadCloudDevices,
@@ -44,6 +48,7 @@ import { INITIAL_CONTACTS } from './data/seedContacts';
 
 import { Navbar } from './components/Navbar';
 import { StatsBar } from './components/StatsBar';
+import { AuthScreen } from './components/AuthScreen';
 import { ContactCard } from './components/ContactCard';
 import { ContactDetailModal } from './components/ContactDetailModal';
 import { ContactFormModal } from './components/ContactFormModal';
@@ -56,7 +61,7 @@ import { SnapshotDiffModal } from './components/SnapshotDiffModal';
 import { DevicesView } from './components/DevicesView';
 import { TrashView } from './components/TrashView';
 
-// Core groups requested by user
+// Preset categories
 const PRESET_GROUPS = [
   { id: 'Trabalho', label: 'Trabalho', icon: Briefcase, color: 'text-blue-500' },
   { id: 'Família', label: 'Família', icon: Heart, color: 'text-rose-500' },
@@ -65,9 +70,9 @@ const PRESET_GROUPS = [
 ];
 
 export default function App() {
-  // Authentication State: Fixed account (vasconcelos.contabilidade@outlook.com)
-  // Opens directly in the agenda without any blocking login screen
-  const [currentUser, setCurrentUser] = useState<CloudUser>(() => getCurrentCloudUser());
+  // Authentication State via Firebase Auth (with browserLocalPersistence)
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
 
   // Navigation & Theme
   const [activeTab, setActiveTab] = useState<'contacts' | 'backups' | 'duplicates' | 'devices' | 'trash'>('contacts');
@@ -75,7 +80,7 @@ export default function App() {
     return localStorage.getItem('cloudagenda_theme') === 'dark';
   });
 
-  // Data states (synced to cloud)
+  // Real-time Firestore synchronized contacts
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [snapshots, setSnapshots] = useState<CloudBackupSnapshot[]>([]);
   const [devices, setDevices] = useState<SyncedDevice[]>([]);
@@ -110,7 +115,7 @@ export default function App() {
     }, 3500);
   }, []);
 
-  // Sync dark class on <html>
+  // Sync dark mode class on <html>
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -121,82 +126,89 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // 1. Silent background authentication to Supabase / Cloud Database
+  // 1. Firebase Auth listener (keeps session active across restarts via browserLocalPersistence)
   useEffect(() => {
-    let isMounted = true;
-    async function performSilentBackgroundAuth() {
-      try {
-        const authedUser = await silentCloudLogin(
-          FIXED_USER_EMAIL,
-          FIXED_USER_PASSWORD,
-          FIXED_USER_NAME
-        );
-        if (isMounted && authedUser) {
-          setCurrentUser(authedUser);
-        }
-      } catch (err) {
-        console.warn('Silent cloud background auth notice:', err);
-      }
-    }
+    const unsubscribe = subscribeToAuth((user) => {
+      setCurrentUser(user);
+      setIsAuthChecking(false);
+    });
 
-    performSilentBackgroundAuth();
-
-    return () => {
-      isMounted = false;
-    };
+    return () => unsubscribe();
   }, []);
 
-  // 2. Load cloud data partitioned by user account
+  // 2. Real-time Cloud Firestore synchronization ('contacts' collection with where("userId", "==", user.uid))
   useEffect(() => {
-    let isMounted = true;
-    async function loadUserData() {
-      setIsSyncing(true);
-      try {
-        const [loadedContacts, loadedSnapshots, loadedDevices, loadedTrash] = await Promise.all([
-          loadCloudContacts(currentUser.uid),
-          loadCloudSnapshots(currentUser.uid),
-          loadCloudDevices(currentUser.uid),
-          loadCloudTrash(currentUser.uid),
-        ]);
+    if (!currentUser) {
+      setContacts([]);
+      setSnapshots([]);
+      setDevices([]);
+      setTrashItems([]);
+      setIsDataLoaded(false);
+      return;
+    }
 
-        if (isMounted) {
-          setContacts(loadedContacts);
-          setSnapshots(loadedSnapshots);
-          setDevices(loadedDevices);
-          setTrashItems(loadedTrash);
-          setIsDataLoaded(true);
+    setIsSyncing(true);
+
+    // Subscribe to Firestore onSnapshot
+    const unsubscribeContacts = subscribeToContacts(
+      currentUser.uid,
+      async (loadedContacts) => {
+        // If this is a brand new account with 0 contacts, seed initial demo contacts into Firestore
+        if (loadedContacts.length === 0 && !isDataLoaded) {
+          try {
+            await saveContactsBulkToFirestore(currentUser.uid, INITIAL_CONTACTS);
+            return;
+          } catch (seedErr) {
+            console.warn('Seed contacts warning:', seedErr);
+          }
         }
+        setContacts(loadedContacts);
+        setIsDataLoaded(true);
+        setIsSyncing(false);
+      },
+      (error) => {
+        console.error('Firestore subscription error:', error);
+        setIsSyncing(false);
+      }
+    );
+
+    // Load ancillary cloud metadata (snapshots, devices, trash)
+    async function loadAuxiliaryData() {
+      try {
+        const [loadedSnapshots, loadedDevices, loadedTrash] = await Promise.all([
+          loadCloudSnapshots(currentUser!.uid),
+          loadCloudDevices(currentUser!.uid),
+          loadCloudTrash(currentUser!.uid),
+        ]);
+        setSnapshots(loadedSnapshots);
+        setDevices(loadedDevices);
+        setTrashItems(loadedTrash);
       } catch (err) {
-        console.error('Erro ao carregar dados na nuvem:', err);
-        showToast('Aviso: operando com cache local resiliente');
-      } finally {
-        if (isMounted) {
-          setIsSyncing(false);
-        }
+        console.warn('Erro ao carregar metadados auxiliares:', err);
       }
     }
 
-    loadUserData();
+    loadAuxiliaryData();
 
     return () => {
-      isMounted = false;
+      unsubscribeContacts();
     };
-  }, [currentUser.uid, showToast]);
+  }, [currentUser]);
 
-  // Derived duplicate scanner and health report
+  // Duplicate Scanner & Health Analytics
   const duplicateGroups = useMemo(() => scanDuplicates(contacts), [contacts]);
   const healthReport = useMemo(() => analyzeContactHealth(contacts), [contacts]);
 
-  // Storage byte size of contacts in cloud
+  // Storage calculation
   const storageUsedBytes = useMemo(() => {
     return new Blob([JSON.stringify(contacts)]).size;
   }, [contacts]);
 
-  // Combined tags: presets + custom tags found in contacts
+  // Available tags
   const availableTags = useMemo(() => {
     const set = new Set<string>();
     PRESET_GROUPS.forEach((g) => set.add(g.id));
-    contacts.forEach((c) => c.tags.forEach((t) => set.add(t)));
+    contacts.forEach((c) => c.tags?.forEach((t) => set.add(t)));
     return Array.from(set);
   }, [contacts]);
 
@@ -204,27 +216,24 @@ export default function App() {
   const filteredContacts = useMemo(() => {
     return contacts
       .filter((contact) => {
-        // Vault filter: hide if secret and vault is locked
         if (contact.isVaultSecret && !isVaultUnlocked) {
           return false;
         }
 
-        // Tag filter
         if (selectedTag === 'favorites' && !contact.isFavorite) return false;
         if (selectedTag === 'ice' && !contact.isEmergencyIce) return false;
         if (selectedTag !== 'all' && selectedTag !== 'favorites' && selectedTag !== 'ice') {
-          if (!contact.tags.includes(selectedTag)) return false;
+          if (!contact.tags?.includes(selectedTag)) return false;
         }
 
-        // Search query
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           const nameMatch = contact.name.toLowerCase().includes(q);
           const nicknameMatch = contact.nickname?.toLowerCase().includes(q);
           const companyMatch = contact.company?.toLowerCase().includes(q);
           const notesMatch = contact.notes?.toLowerCase().includes(q);
-          const phoneMatch = contact.phones.some((p) => p.number.includes(q));
-          const emailMatch = contact.emails.some((e) => e.email.toLowerCase().includes(q));
+          const phoneMatch = contact.phones?.some((p) => p.number.includes(q));
+          const emailMatch = contact.emails?.some((e) => e.email.toLowerCase().includes(q));
           return nameMatch || nicknameMatch || companyMatch || notesMatch || phoneMatch || emailMatch;
         }
 
@@ -233,80 +242,81 @@ export default function App() {
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [contacts, isVaultUnlocked, selectedTag, searchQuery]);
 
-  // Save contacts helper (syncs directly to cloud database)
-  const persistContacts = async (updatedList: Contact[], toastMsg?: string) => {
-    setContacts(updatedList);
-    if (currentUser) {
-      setIsSyncing(true);
-      await saveCloudContacts(currentUser.uid, updatedList);
-      setIsSyncing(false);
-    }
-    if (toastMsg) showToast(toastMsg);
-  };
-
   // ------------------------------------------------------------------
-  // CRUD Handlers
+  // REAL CLOUD FIRESTORE MUTATIONS (Zero LocalStorage for contacts)
   // ------------------------------------------------------------------
 
   const handleSaveContact = async (contactToSave: Contact) => {
-    const existingIndex = contacts.findIndex((c) => c.id === contactToSave.id);
-    let updated: Contact[];
-
-    if (existingIndex !== -1) {
-      updated = [...contacts];
-      updated[existingIndex] = contactToSave;
-      await persistContacts(updated, `Contato "${contactToSave.name}" atualizado na nuvem.`);
-    } else {
-      updated = [contactToSave, ...contacts];
-      await persistContacts(updated, `Contato "${contactToSave.name}" adicionado à nuvem.`);
-    }
-
-    // Auto-create point in snapshots if significant
-    if (currentUser) {
-      const snap: CloudBackupSnapshot = {
-        id: 'snap_' + Date.now(),
-        label: `Alteração: ${contactToSave.name}`,
-        createdAt: new Date().toLocaleString('pt-BR'),
-        contactCount: updated.length,
-        sizeBytes: new Blob([JSON.stringify(updated)]).size,
-        deviceOrigin: 'Web Nuvem',
-        checksum: 'E2EE-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
-        contacts: updated,
-        isAutomatic: true,
-      };
-      const newSnapshots = [snap, ...snapshots];
-      setSnapshots(newSnapshots);
-      saveCloudSnapshots(currentUser.uid, newSnapshots);
+    if (!currentUser) return;
+    setIsSyncing(true);
+    try {
+      await saveContactToFirestore(currentUser.uid, contactToSave);
+      showToast(`Contato "${contactToSave.name}" salvo no Firebase!`);
+    } catch (err: any) {
+      console.error('Erro ao salvar no Firestore:', err);
+      showToast('Falha ao salvar no Firestore. Verifique a conexão.');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
-  const handleDeleteContact = async (contact: Contact) => {
-    const updated = contacts.filter((c) => c.id !== contact.id);
-    const newTrashItem: TrashItem = {
-      contact,
-      deletedAt: new Date().toLocaleString('pt-BR'),
-      autoPurgeDays: 30,
-    };
-    const updatedTrash = [newTrashItem, ...trashItems];
+  const handleDeleteContact = async (contactId: string) => {
+    if (!currentUser) return;
+    const contactToDelete = contacts.find((c) => c.id === contactId);
+    if (!contactToDelete) return;
 
-    setContacts(updated);
-    setTrashItems(updatedTrash);
+    setIsSyncing(true);
+    try {
+      await deleteContactFromFirestore(contactId, currentUser.uid);
 
-    if (currentUser) {
-      await Promise.all([
-        saveCloudContacts(currentUser.uid, updated),
-        saveCloudTrash(currentUser.uid, updatedTrash),
-      ]);
+      // Save into trash
+      const newTrashItem: TrashItem = {
+        contact: contactToDelete,
+        deletedAt: new Date().toLocaleString('pt-BR'),
+        autoPurgeDays: 30,
+      };
+      const updatedTrash = [newTrashItem, ...trashItems];
+      setTrashItems(updatedTrash);
+      await saveCloudTrash(currentUser.uid, updatedTrash);
+
+      showToast(`Contato "${contactToDelete.name}" movido para a lixeira.`);
+      if (detailContact?.id === contactId) setDetailContact(null);
+    } catch (err) {
+      console.error('Erro ao apagar contato:', err);
+      showToast('Erro ao remover contato.');
+    } finally {
+      setIsSyncing(false);
     }
-
-    showToast(`Contato "${contact.name}" movido para a lixeira.`);
   };
 
   const handleToggleFavorite = async (contactId: string) => {
-    const updated = contacts.map((c) =>
-      c.id === contactId ? { ...c, isFavorite: !c.isFavorite } : c
-    );
-    await persistContacts(updated);
+    if (!currentUser) return;
+    const target = contacts.find((c) => c.id === contactId);
+    if (!target) return;
+
+    try {
+      await saveContactToFirestore(currentUser.uid, {
+        ...target,
+        isFavorite: !target.isFavorite,
+      });
+    } catch (err) {
+      console.error('Erro ao favoritar:', err);
+    }
+  };
+
+  const handleToggleIce = async (contactId: string) => {
+    if (!currentUser) return;
+    const target = contacts.find((c) => c.id === contactId);
+    if (!target) return;
+
+    try {
+      await saveContactToFirestore(currentUser.uid, {
+        ...target,
+        isEmergencyIce: !target.isEmergencyIce,
+      });
+    } catch (err) {
+      console.error('Erro ao alternar ICE:', err);
+    }
   };
 
   const handleSelectContact = (contactId: string, selected: boolean) => {
@@ -324,33 +334,35 @@ export default function App() {
     }
   };
 
-  // Bulk actions
+  // Bulk actions in Firestore
   const handleBulkDelete = async () => {
-    if (selectedContactIds.size === 0) return;
-    const toDelete = contacts.filter((c) => selectedContactIds.has(c.id));
-    const remaining = contacts.filter((c) => !selectedContactIds.has(c.id));
+    if (!currentUser || selectedContactIds.size === 0) return;
+    const idsToDelete = Array.from(selectedContactIds);
+    const toDeleteContacts = contacts.filter((c) => selectedContactIds.has(c.id));
 
-    const newTrash = [
-      ...toDelete.map((c) => ({
-        contact: c,
-        deletedAt: new Date().toLocaleString('pt-BR'),
-        autoPurgeDays: 30,
-      })),
-      ...trashItems,
-    ];
+    setIsSyncing(true);
+    try {
+      await deleteContactsBulkFromFirestore(idsToDelete, currentUser.uid);
 
-    setContacts(remaining);
-    setTrashItems(newTrash);
-    setSelectedContactIds(new Set());
+      const newTrash = [
+        ...toDeleteContacts.map((c) => ({
+          contact: c,
+          deletedAt: new Date().toLocaleString('pt-BR'),
+          autoPurgeDays: 30,
+        })),
+        ...trashItems,
+      ];
+      setTrashItems(newTrash);
+      await saveCloudTrash(currentUser.uid, newTrash);
 
-    if (currentUser) {
-      await Promise.all([
-        saveCloudContacts(currentUser.uid, remaining),
-        saveCloudTrash(currentUser.uid, newTrash),
-      ]);
+      setSelectedContactIds(new Set());
+      showToast(`${idsToDelete.length} contatos movidos para a lixeira.`);
+    } catch (err) {
+      console.error('Erro ao apagar em lote no Firestore:', err);
+      showToast('Falha ao apagar contatos em lote.');
+    } finally {
+      setIsSyncing(false);
     }
-
-    showToast(`${toDelete.length} contatos movidos para a lixeira.`);
   };
 
   const handleBulkExportVcf = () => {
@@ -360,31 +372,70 @@ export default function App() {
     showToast(`${selected.length} contatos exportados em vCard.`);
   };
 
-  const handleBulkAddTag = async (tagName: string) => {
-    if (selectedContactIds.size === 0) return;
-    const updated = contacts.map((c) => {
-      if (selectedContactIds.has(c.id)) {
-        const currentTags = c.tags || [];
-        return currentTags.includes(tagName) ? c : { ...c, tags: [...currentTags, tagName] };
-      }
-      return c;
-    });
+  // Universal Import into Firestore (Excel / JSON / Paste Ctrl+V)
+  const handleImportContacts = async (imported: Contact[], mode: 'append' | 'replace') => {
+    if (!currentUser) return;
+    setIsSyncing(true);
 
-    await persistContacts(updated, `Tag "${tagName}" adicionada aos contatos selecionados.`);
+    try {
+      if (mode === 'replace') {
+        const existingIds = contacts.map((c) => c.id);
+        if (existingIds.length > 0) {
+          await deleteContactsBulkFromFirestore(existingIds, currentUser.uid);
+        }
+      }
+
+      await saveContactsBulkToFirestore(currentUser.uid, imported);
+      showToast(`${imported.length} contatos gravados no Firebase com sucesso!`);
+
+      // Record snapshot
+      const snap: CloudBackupSnapshot = {
+        id: 'snap_' + Date.now(),
+        label: `Importação Universal (${mode === 'replace' ? 'Substituição' : 'Mesclagem'}: ${imported.length} contatos)`,
+        createdAt: new Date().toLocaleString('pt-BR'),
+        contactCount: imported.length,
+        sizeBytes: new Blob([JSON.stringify(imported)]).size,
+        deviceOrigin: 'Importação Universal (Excel/Ctrl+V)',
+        checksum: 'FB-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        contacts: imported,
+        isAutomatic: true,
+      };
+      const updatedSnapshots = [snap, ...snapshots];
+      setSnapshots(updatedSnapshots);
+      await saveCloudSnapshots(currentUser.uid, updatedSnapshots);
+    } catch (err) {
+      console.error('Erro ao importar contatos:', err);
+      showToast('Falha ao sincronizar importação no Firebase.');
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
-  // Trigger manual cloud backup snapshot
+  // Dedicated JSON Backup restore with deduplication against current Firestore data
+  const handleRestoreJsonBackup = async (importedContacts: Contact[]): Promise<{ addedCount: number; skippedCount: number }> => {
+    if (!currentUser) return { addedCount: 0, skippedCount: 0 };
+    setIsSyncing(true);
+    try {
+      const res = await restoreBackupIntoFirestore(currentUser.uid, importedContacts, contacts);
+      showToast(`${res.addedCount} novos contatos restaurados no Firebase (${res.skippedCount} duplicados ignorados).`);
+      return res;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Manual snapshot trigger
   const handleTriggerBackup = async (customLabel?: string) => {
     if (!currentUser) return;
     setIsSyncing(true);
 
     const snap: CloudBackupSnapshot = {
       id: 'snap_' + Date.now(),
-      label: customLabel || `Backup Manual em Nuvem (${new Date().toLocaleTimeString('pt-BR')})`,
+      label: customLabel || `Snapshot Manual no Firebase (${new Date().toLocaleTimeString('pt-BR')})`,
       createdAt: new Date().toLocaleString('pt-BR'),
       contactCount: contacts.length,
       sizeBytes: new Blob([JSON.stringify(contacts)]).size,
-      deviceOrigin: 'Navegador Web / Nuvem E2EE',
+      deviceOrigin: 'Navegador Web / Firebase Cloud',
       checksum: 'E2EE-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
       contacts,
       isAutomatic: false,
@@ -394,14 +445,19 @@ export default function App() {
     setSnapshots(updatedSnapshots);
     await saveCloudSnapshots(currentUser.uid, updatedSnapshots);
     setIsSyncing(false);
-    showToast(`Snapshot "${snap.label}" salvo na nuvem com sucesso!`);
+    showToast(`Snapshot "${snap.label}" registrado no Firebase!`);
   };
 
   const handleRestoreSnapshot = async (snapshot: CloudBackupSnapshot) => {
     if (!currentUser) return;
-    await persistContacts(snapshot.contacts);
-    showToast(`Agenda restaurada com sucesso para a versão: "${snapshot.label}"!`);
-    setActiveTab('contacts');
+    setIsSyncing(true);
+    try {
+      await saveContactsBulkToFirestore(currentUser.uid, snapshot.contacts);
+      showToast(`Agenda restaurada para o snapshot: "${snapshot.label}"!`);
+      setActiveTab('contacts');
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleDeleteSnapshot = async (id: string) => {
@@ -409,53 +465,36 @@ export default function App() {
     const updated = snapshots.filter((s) => s.id !== id);
     setSnapshots(updated);
     await saveCloudSnapshots(currentUser.uid, updated);
-    showToast('Ponto de restauração removido da nuvem.');
+    showToast('Ponto de restauração removido.');
   };
 
   // Trash actions
   const handleRestoreFromTrash = async (contactId: string) => {
+    if (!currentUser) return;
     const item = trashItems.find((t) => t.contact.id === contactId);
     if (!item) return;
 
+    await saveContactToFirestore(currentUser.uid, item.contact);
     const updatedTrash = trashItems.filter((t) => t.contact.id !== contactId);
-    const updatedContacts = [item.contact, ...contacts];
-
-    setContacts(updatedContacts);
     setTrashItems(updatedTrash);
+    await saveCloudTrash(currentUser.uid, updatedTrash);
 
-    if (currentUser) {
-      await Promise.all([
-        saveCloudContacts(currentUser.uid, updatedContacts),
-        saveCloudTrash(currentUser.uid, updatedTrash),
-      ]);
-    }
-
-    showToast(`Contato "${item.contact.name}" restaurado para a agenda.`);
+    showToast(`Contato "${item.contact.name}" restaurado.`);
   };
 
   const handleRestoreAllTrash = async () => {
-    if (trashItems.length === 0) return;
+    if (!currentUser || trashItems.length === 0) return;
     const restored = trashItems.map((t) => t.contact);
-    const updatedContacts = [...restored, ...contacts];
-
-    setContacts(updatedContacts);
+    await saveContactsBulkToFirestore(currentUser.uid, restored);
     setTrashItems([]);
-
-    if (currentUser) {
-      await Promise.all([
-        saveCloudContacts(currentUser.uid, updatedContacts),
-        saveCloudTrash(currentUser.uid, []),
-      ]);
-    }
-
+    await saveCloudTrash(currentUser.uid, []);
     showToast('Todos os contatos da lixeira foram restaurados.');
   };
 
   const handleEmptyTrash = async () => {
+    if (!currentUser) return;
     setTrashItems([]);
-    if (currentUser) {
-      await saveCloudTrash(currentUser.uid, []);
-    }
+    await saveCloudTrash(currentUser.uid, []);
     showToast('Lixeira esvaziada permanentemente.');
   };
 
@@ -473,7 +512,7 @@ export default function App() {
     );
     setDevices(updated);
     await saveCloudDevices(currentUser.uid, updated);
-    showToast('Aparelho sincronizado com a nuvem com sucesso.');
+    showToast('Aparelho sincronizado com a nuvem do Firebase.');
   };
 
   const handleRemoveDevice = async (deviceId: string) => {
@@ -481,7 +520,7 @@ export default function App() {
     const updated = devices.filter((d) => d.id !== deviceId);
     setDevices(updated);
     await saveCloudDevices(currentUser.uid, updated);
-    showToast('Aparelho desvinculado da conta.');
+    showToast('Aparelho desvinculado.');
   };
 
   const handleAddDevice = async (newDev: SyncedDevice) => {
@@ -489,73 +528,45 @@ export default function App() {
     const updated = [newDev, ...devices];
     setDevices(updated);
     await saveCloudDevices(currentUser.uid, updated);
-    showToast(`Dispositivo "${newDev.name}" pareado com a sua conta na nuvem!`);
+    showToast(`Dispositivo "${newDev.name}" pareado com sucesso!`);
   };
 
-  // Import contacts
-  const handleImportContacts = async (imported: Contact[], mode: 'append' | 'replace') => {
-    let finalContacts: Contact[];
-    if (mode === 'replace') {
-      finalContacts = imported;
-    } else {
-      finalContacts = [...contacts, ...imported];
-    }
-
-    await persistContacts(finalContacts, `${imported.length} contatos sincronizados e salvos com segurança na nuvem!`);
-
-    // Create an automatic safety snapshot in the cloud
-    if (currentUser) {
-      const snap: CloudBackupSnapshot = {
-        id: 'snap_' + Date.now(),
-        label: `Importação Universal (${mode === 'replace' ? 'Substituição' : 'Mesclagem'}: ${imported.length} contatos)`,
-        createdAt: new Date().toLocaleString('pt-BR'),
-        contactCount: finalContacts.length,
-        sizeBytes: new Blob([JSON.stringify(finalContacts)]).size,
-        deviceOrigin: 'Importação Universal (Excel/Ctrl+V)',
-        checksum: 'E2EE-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
-        contacts: finalContacts,
-        isAutomatic: true,
-      };
-      const updatedSnapshots = [snap, ...snapshots];
-      setSnapshots(updatedSnapshots);
-      await saveCloudSnapshots(currentUser.uid, updatedSnapshots);
-    }
-  };
-
-  // Merge duplicates
   const handleApplyMerges = async (mergedList: Contact[]) => {
-    await persistContacts(mergedList, 'Contatos duplicados mesclados e organizados com sucesso!');
+    if (!currentUser) return;
+    await saveContactsBulkToFirestore(currentUser.uid, mergedList);
+    showToast('Contatos duplicados mesclados com sucesso no Firebase!');
   };
 
-  const handleResetDemo = async () => {
-    if (window.confirm('Deseja recarregar a base de contatos padrão para esta conta?')) {
-      await persistContacts(INITIAL_CONTACTS, 'Dados de demonstração restaurados na nuvem.');
-    }
+  const handleLogout = async () => {
+    await logoutFromFirebase();
+    setCurrentUser(null);
+    showToast('Sessão encerrada com segurança.');
   };
 
-  // Single-user cloud synchronization handler (seamless silent mode)
-  const handleSyncCloudSession = async () => {
-    setIsSyncing(true);
-    try {
-      const refreshedUser = await silentCloudLogin(
-        FIXED_USER_EMAIL,
-        FIXED_USER_PASSWORD,
-        FIXED_USER_NAME
-      );
-      setCurrentUser(refreshedUser);
-      const reloadedContacts = await loadCloudContacts(refreshedUser.uid);
-      setContacts(reloadedContacts);
-      showToast(`Nuvem sincronizada com sucesso para ${FIXED_USER_EMAIL}`);
-    } catch {
-      showToast('Sincronização em segundo plano concluída.');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  // If Firebase Auth is checking stored credentials, show subtle non-blocking splash
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-[#F9FAFB] dark:bg-[#090C10]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-500 text-white shadow-xl shadow-indigo-500/25 animate-pulse">
+            <Cloud className="h-7 w-7 stroke-[2.2]" />
+          </div>
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Carregando CloudAgenda Pro...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is not logged in, show AuthScreen with Login / Register and "Lembrar meu login"
+  if (!currentUser) {
+    return <AuthScreen onAuthSuccess={(user) => setCurrentUser(user)} />;
+  }
 
   return (
     <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-[#F9FAFB] text-slate-800 transition-colors duration-300 dark:bg-[#090C10] dark:text-slate-100 flex flex-col">
-      {/* Toast Notification - Floating pill */}
+      {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-900/95 px-4.5 py-3 text-xs font-medium text-white shadow-2xl shadow-slate-900/20 backdrop-blur-xl dark:border-white/10 dark:bg-slate-900/90 animate-slide-up">
           <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />
@@ -566,7 +577,7 @@ export default function App() {
       {/* Top Bar Navigation */}
       <Navbar
         user={currentUser}
-        onLogout={handleSyncCloudSession}
+        onLogout={handleLogout}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onNewContact={() => {
@@ -583,292 +594,251 @@ export default function App() {
         trashCount={trashItems.length}
       />
 
-      {/* Stats & Quick Actions Bar */}
+      {/* Dashboard Stats Banner */}
       <StatsBar
         totalContacts={contacts.length}
         healthScore={healthReport.score}
         duplicateCount={duplicateGroups.length}
         storageUsedBytes={storageUsedBytes}
-        lastSyncTime={snapshots[0]?.createdAt || null}
+        lastSyncTime={isSyncing ? 'Sincronizando...' : 'Firebase Conectado'}
         cloudUserEmail={currentUser.email}
         onOpenImportExport={(tab) => {
           setImportExportTab(tab);
           setImportExportOpen(true);
         }}
-        onResetDemo={handleResetDemo}
+        onResetDemo={() => handleTriggerBackup('Ponto de Segurança')}
       />
 
-      {/* Main View Router */}
-      <main className="w-full max-w-full overflow-x-hidden flex-1 pb-16">
+      {/* Main Content Area */}
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        
+        {/* TAB 1: CONTATOS */}
         {activeTab === 'contacts' && (
-          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 py-6 sm:py-8 space-y-6 overflow-x-hidden">
-            {/* Filter Bar & Controls */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 w-full">
-              {/* Search input with Apple/Linear clean style */}
-              <div className="relative flex-1 w-full md:max-w-md">
+          <div className="space-y-5">
+            {/* Action Bar: Search, Category Filters, View Switcher & Action Buttons */}
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3.5">
+              
+              {/* Search Bar */}
+              <div className="relative flex-1 max-w-md">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Pesquisar por nome, telefone, e-mail ou notas..."
-                  className="w-full rounded-2xl border border-slate-200/70 bg-white pl-10 pr-4 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 shadow-2xs hover:border-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/15 dark:border-white/[0.08] dark:bg-[#0E121B] dark:text-white dark:hover:border-white/[0.14] transition-all duration-300"
+                  placeholder="Buscar por nome, telefone, e-mail ou empresa..."
+                  className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200/80 bg-white placeholder:text-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-white transition-all shadow-2xs"
                 />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                  >
-                    Limpar
-                  </button>
-                )}
               </div>
 
-              {/* View layout toggle & Select all */}
-              <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
-                {filteredContacts.length > 0 && (
-                  <button
-                    onClick={handleSelectAll}
-                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-[#0E121B] dark:text-slate-300 transition-all duration-200 hover:-translate-y-0.5"
-                  >
-                    {selectedContactIds.size === filteredContacts.length ? (
-                      <CheckSquare className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                    ) : (
-                      <Square className="h-3.5 w-3.5 text-slate-400" />
-                    )}
-                    <span>
-                      {selectedContactIds.size > 0
-                        ? `${selectedContactIds.size} selecionados`
-                        : 'Selecionar Todos'}
-                    </span>
-                  </button>
-                )}
+              {/* Group / Tag Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <button
+                  onClick={() => setSelectedTag('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                    selectedTag === 'all'
+                      ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
+                      : 'bg-white text-slate-600 border border-slate-200/60 hover:bg-slate-50 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-slate-300'
+                  }`}
+                >
+                  Todos ({contacts.length})
+                </button>
 
-                <div className="flex items-center border border-slate-200/70 rounded-xl bg-white p-0.5 dark:border-white/[0.08] dark:bg-[#0E121B] shadow-2xs">
+                <button
+                  onClick={() => setSelectedTag('favorites')}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                    selectedTag === 'favorites'
+                      ? 'bg-amber-500 text-white shadow-sm shadow-amber-500/20'
+                      : 'bg-white text-slate-600 border border-slate-200/60 hover:bg-slate-50 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-slate-300'
+                  }`}
+                >
+                  <Star className="h-3 w-3 fill-current" />
+                  <span>Favoritos</span>
+                </button>
+
+                <button
+                  onClick={() => setSelectedTag('ice')}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all duration-200 ${
+                    selectedTag === 'ice'
+                      ? 'bg-rose-600 text-white shadow-sm shadow-rose-600/20'
+                      : 'bg-white text-slate-600 border border-slate-200/60 hover:bg-slate-50 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-slate-300'
+                  }`}
+                >
+                  <ShieldAlert className="h-3 w-3" />
+                  <span>SOS / ICE</span>
+                </button>
+
+                {availableTags.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedTag(tag)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                      selectedTag === tag
+                        ? 'bg-indigo-600 text-white font-semibold shadow-sm'
+                        : 'bg-white text-slate-600 border border-slate-200/60 hover:bg-slate-50 dark:bg-white/[0.04] dark:border-white/[0.06] dark:text-slate-300'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+
+              {/* View layout & Import CTA */}
+              <div className="flex items-center gap-2 self-end md:self-auto">
+                <button
+                  onClick={() => {
+                    setImportExportTab('import');
+                    setImportExportOpen(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl border border-slate-200/80 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200 transition-all duration-200 hover:-translate-y-0.5"
+                >
+                  <FileUp className="h-3.5 w-3.5 text-indigo-500" />
+                  <span>Importar</span>
+                </button>
+
+                <div className="flex items-center p-0.5 rounded-xl border border-slate-200/60 bg-white dark:border-white/[0.08] dark:bg-white/[0.04]">
                   <button
                     onClick={() => setViewLayout('grid')}
                     className={`p-1.5 rounded-lg transition-colors ${
                       viewLayout === 'grid'
                         ? 'bg-slate-100 text-slate-900 dark:bg-white/[0.12] dark:text-white'
-                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                     }`}
                     title="Visualização em Grade"
                   >
-                    <Grid className="h-4 w-4" />
+                    <Grid className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => setViewLayout('list')}
                     className={`p-1.5 rounded-lg transition-colors ${
                       viewLayout === 'list'
                         ? 'bg-slate-100 text-slate-900 dark:bg-white/[0.12] dark:text-white'
-                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                     }`}
                     title="Visualização em Lista"
                   >
-                    <List className="h-4 w-4" />
+                    <List className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Segmented Tag Filters - Apple style micro pills with Presets (Família, Trabalho, Amigos, Médicos) */}
-            <div className="flex flex-wrap items-center gap-1.5 w-full">
-              <button
-                onClick={() => setSelectedTag('all')}
-                className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
-                  selectedTag === 'all'
-                    ? 'bg-slate-900 text-white shadow-xs dark:bg-white dark:text-slate-900'
-                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
-                }`}
-              >
-                Todos ({contacts.length})
-              </button>
-
-              <button
-                onClick={() => setSelectedTag('favorites')}
-                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
-                  selectedTag === 'favorites'
-                    ? 'bg-amber-500 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
-                }`}
-              >
-                <Star className="h-3.5 w-3.5 fill-current" />
-                <span>Favoritos</span>
-              </button>
-
-              <button
-                onClick={() => setSelectedTag('ice')}
-                className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
-                  selectedTag === 'ice'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
-                }`}
-              >
-                <ShieldAlert className="h-3.5 w-3.5" />
-                <span>Emergência ICE</span>
-              </button>
-
-              {/* Group presets: Trabalho, Família, Amigos, Médicos */}
-              {PRESET_GROUPS.map((grp) => {
-                const IconComponent = grp.icon;
-                const count = contacts.filter((c) => c.tags?.includes(grp.id)).length;
-                return (
-                  <button
-                    key={grp.id}
-                    onClick={() => setSelectedTag(grp.id)}
-                    className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
-                      selectedTag === grp.id
-                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
-                        : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
-                    }`}
-                  >
-                    <IconComponent className={`h-3.5 w-3.5 ${selectedTag === grp.id ? 'text-white' : grp.color}`} />
-                    <span>{grp.label}</span>
-                    <span className="opacity-70 font-mono text-[11px]">({count})</span>
-                  </button>
-                );
-              })}
-
-              {/* Any additional custom tags */}
-              {availableTags
-                .filter((t) => !PRESET_GROUPS.some((g) => g.id === t))
-                .map((tag) => (
-                  <button
-                    key={tag}
-                    onClick={() => setSelectedTag(tag)}
-                    className={`rounded-xl px-3 py-1.5 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 ${
-                      selectedTag === tag
-                        ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20'
-                        : 'bg-white text-slate-600 border border-slate-200/70 hover:border-slate-300 hover:bg-slate-50 dark:bg-[#0E121B] dark:text-slate-300 dark:border-white/[0.08]'
-                    }`}
-                  >
-                    #{tag}
-                  </button>
-                ))}
-            </div>
-
-            {/* Bulk Actions Floating Bar */}
+            {/* Selection Bar (When items are checked) */}
             {selectedContactIds.size > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-indigo-200/50 bg-indigo-50/70 px-4 py-3 dark:border-indigo-900/40 dark:bg-indigo-950/30 backdrop-blur-md shadow-sm w-full animate-fade-in">
-                <div className="text-xs font-semibold text-indigo-950 dark:text-indigo-200">
-                  {selectedContactIds.size} contato{selectedContactIds.size > 1 ? 's' : ''} selecionado{selectedContactIds.size > 1 ? 's' : ''}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-indigo-50/80 border border-indigo-100 dark:bg-indigo-950/40 dark:border-indigo-900/50 animate-slide-up">
+                <div className="flex items-center gap-2 text-xs font-semibold text-indigo-950 dark:text-indigo-200">
+                  <CheckSquare className="h-4 w-4 text-indigo-600" />
+                  <span>{selectedContactIds.size} contatos selecionados</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Quick tag batch action */}
-                  <div className="hidden sm:flex items-center gap-1 border-r border-indigo-200/60 dark:border-indigo-800/40 pr-2">
-                    <span className="text-[11px] text-indigo-900/70 dark:text-indigo-300">Marcar:</span>
-                    {PRESET_GROUPS.map((g) => (
-                      <button
-                        key={g.id}
-                        onClick={() => handleBulkAddTag(g.id)}
-                        className="rounded-lg bg-white/80 dark:bg-white/10 px-2 py-1 text-[10px] font-medium text-slate-700 dark:text-slate-200 hover:bg-white"
-                      >
-                        +{g.label}
-                      </button>
-                    ))}
-                  </div>
 
+                <div className="flex items-center gap-2">
                   <button
                     onClick={handleBulkExportVcf}
-                    className="flex items-center gap-1 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:bg-white/[0.08] dark:text-slate-200 transition-all duration-200 hover:-translate-y-0.5"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white text-slate-700 text-xs font-semibold border border-indigo-200/60 shadow-2xs hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:border-white/[0.08] transition-all"
                   >
-                    <Download className="h-3.5 w-3.5" />
+                    <Download className="h-3.5 w-3.5 text-indigo-600" />
                     <span>Exportar vCard</span>
                   </button>
                   <button
                     onClick={handleBulkDelete}
-                    className="flex items-center gap-1 rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-rose-500 transition-all duration-200 hover:-translate-y-0.5"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200/80 shadow-2xs hover:bg-rose-100 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60 transition-all"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Lixeira</span>
-                  </button>
-                  <button
-                    onClick={() => setSelectedContactIds(new Set())}
-                    className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 ml-1"
-                  >
-                    Desmarcar
+                    <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                    <span>Mover para Lixeira</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {/* Contacts Grid / List */}
+            {/* Contacts Grid: 100% fluid responsive grid without horizontal overflow */}
             {filteredContacts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200/80 bg-white p-10 sm:p-12 text-center dark:border-white/[0.08] dark:bg-[#0E121B] shadow-2xs w-full">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 dark:bg-white/[0.04] mb-3">
-                  <Users className="h-6 w-6 stroke-[1.8]" />
+              <div className="flex flex-col items-center justify-center p-12 text-center rounded-3xl border border-dashed border-slate-200 bg-white/60 dark:border-white/[0.08] dark:bg-white/[0.02]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400 dark:bg-white/[0.06] dark:text-slate-500 mb-3">
+                  <Users className="h-6 w-6" />
                 </div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                <h4 className="text-sm font-bold text-slate-800 dark:text-white">
                   Nenhum contato encontrado
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm">
-                  {searchQuery
-                    ? `Nenhum resultado corresponde à busca "${searchQuery}".`
-                    : 'Não há contatos cadastrados nesta categoria na sua conta de nuvem.'}
+                </h4>
+                <p className="text-xs text-slate-500 max-w-sm mt-1">
+                  Não encontramos registros para o filtro ou busca selecionada. Crie um novo contato ou importe uma planilha.
                 </p>
-                <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-                  <button
-                    onClick={() => {
-                      setEditingContact(null);
-                      setIsFormOpen(true);
-                    }}
-                    className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm shadow-indigo-600/20 hover:bg-indigo-500 transition-all duration-200 hover:-translate-y-0.5"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Criar Novo Contato</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setImportExportTab('import');
-                      setImportExportOpen(true);
-                    }}
-                    className="flex items-center gap-1.5 rounded-xl border border-slate-200/70 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 hover:bg-slate-50 dark:border-white/[0.08] dark:bg-white/[0.04] dark:text-slate-200 transition-all duration-200 hover:-translate-y-0.5"
-                  >
-                    <FileUp className="h-3.5 w-3.5" />
-                    <span>Importar Arquivo (.vcf)</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    setEditingContact(null);
+                    setIsFormOpen(true);
+                  }}
+                  className="mt-4 flex items-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-indigo-500 transition-all hover:-translate-y-0.5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Cadastrar Primeiro Contato</span>
+                </button>
               </div>
-            ) : (
-              /* REQUIRED GRID STRUCTURE: grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full */
-              <div
-                className={
-                  viewLayout === 'grid'
-                    ? 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full'
-                    : 'space-y-3 w-full'
-                }
-              >
+            ) : viewLayout === 'grid' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 w-full">
                 {filteredContacts.map((contact) => (
                   <ContactCard
                     key={contact.id}
                     contact={contact}
                     isSelected={selectedContactIds.has(contact.id)}
-                    onSelect={handleSelectContact}
+                    onSelect={(contactId: string, selected: boolean) => handleSelectContact(contactId, selected)}
                     onOpenDetails={(c) => setDetailContact(c)}
                     onOpenQr={(c) => setQrContact(c)}
-                    onToggleFavorite={handleToggleFavorite}
-                    onDelete={handleDeleteContact}
+                    onToggleFavorite={(id) => handleToggleFavorite(id)}
+                    onDelete={(c) => handleDeleteContact(c.id)}
                   />
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-white/[0.06] dark:bg-[#0E121B] divide-y divide-slate-100 dark:divide-white/[0.04]">
+                {filteredContacts.map((contact) => (
+                  <div
+                    key={contact.id}
+                    onClick={() => setDetailContact(contact)}
+                    className="flex items-center justify-between p-3.5 hover:bg-slate-50/70 dark:hover:bg-white/[0.02] cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-xs font-bold text-white shadow-2xs">
+                        {contact.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                          <span>{contact.name}</span>
+                          {contact.isFavorite && <Star className="h-3 w-3 text-amber-500 fill-amber-500" />}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-mono">
+                          {contact.phones?.[0]?.number || 'Sem telefone'} • {contact.company || 'Sem empresa'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      {contact.tags?.map((t) => (
+                        <span key={t} className="hidden sm:inline px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-medium text-slate-600 dark:bg-white/[0.06] dark:text-slate-300">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
           </div>
         )}
 
-        {/* Tab 2: Backups & Nuvem */}
+        {/* TAB 2: BACKUP & SEGURANÇA */}
         {activeTab === 'backups' && (
           <CloudBackupView
-            contacts={contacts}
             snapshots={snapshots}
-            isSyncing={isSyncing}
-            onTriggerBackup={handleTriggerBackup}
+            contacts={contacts}
             onRestoreSnapshot={handleRestoreSnapshot}
-            onInspectDiff={(snap) => setDiffSnapshot(snap)}
             onDeleteSnapshot={handleDeleteSnapshot}
+            onTriggerBackup={(label) => handleTriggerBackup(label)}
+            onInspectDiff={(snap) => setDiffSnapshot(snap)}
+            onRestoreJsonBackup={handleRestoreJsonBackup}
+            isSyncing={isSyncing}
           />
         )}
 
-        {/* Tab 3: Duplicate Cleaner View */}
+        {/* TAB 3: OTIMIZADOR DE DUPLICATAS */}
         {activeTab === 'duplicates' && (
           <DuplicateCleanerModal
             contacts={contacts}
@@ -881,7 +851,7 @@ export default function App() {
           />
         )}
 
-        {/* Tab 4: Synced Devices */}
+        {/* TAB 4: APARELHOS SINCRONIZADOS */}
         {activeTab === 'devices' && (
           <DevicesView
             devices={devices}
@@ -891,7 +861,7 @@ export default function App() {
           />
         )}
 
-        {/* Tab 5: Trash View */}
+        {/* TAB 5: LIXEIRA DE CONTATOS */}
         {activeTab === 'trash' && (
           <TrashView
             trashItems={trashItems}
@@ -902,76 +872,75 @@ export default function App() {
         )}
       </main>
 
-      {/* Modals */}
-      <ContactDetailModal
-        contact={detailContact}
-        onClose={() => setDetailContact(null)}
-        onEdit={(c) => {
-          setEditingContact(c);
-          setIsFormOpen(true);
-        }}
-        onDelete={handleDeleteContact}
-        onToggleFavorite={handleToggleFavorite}
-        onOpenQr={(c) => setQrContact(c)}
-      />
+      {/* MODALS */}
+      {detailContact && (
+        <ContactDetailModal
+          contact={detailContact}
+          onClose={() => setDetailContact(null)}
+          onEdit={(c) => {
+            setEditingContact(c);
+            setDetailContact(null);
+            setIsFormOpen(true);
+          }}
+          onDelete={(c) => handleDeleteContact(c.id)}
+          onToggleFavorite={(id) => handleToggleFavorite(id)}
+          onOpenQr={(c) => setQrContact(c)}
+        />
+      )}
 
-      <ContactFormModal
-        isOpen={isFormOpen}
-        initialContact={editingContact}
-        onClose={() => {
-          setIsFormOpen(false);
-          setEditingContact(null);
-        }}
-        onSave={handleSaveContact}
-      />
+      {isFormOpen && (
+        <ContactFormModal
+          isOpen={isFormOpen}
+          onClose={() => {
+            setIsFormOpen(false);
+            setEditingContact(null);
+          }}
+          initialContact={editingContact}
+          onSave={handleSaveContact}
+        />
+      )}
 
-      <ImportExportModal
-        isOpen={importExportOpen}
-        defaultTab={importExportTab}
-        contacts={contacts}
-        onClose={() => setImportExportOpen(false)}
-        onImportContacts={handleImportContacts}
-      />
+      {qrContact && (
+        <QRCodeModal
+          contact={qrContact}
+          onClose={() => setQrContact(null)}
+        />
+      )}
 
-      <QRCodeModal
-        contact={qrContact}
-        onClose={() => setQrContact(null)}
-      />
+      {diffSnapshot && (
+        <SnapshotDiffModal
+          snapshot={diffSnapshot}
+          currentContacts={contacts}
+          onClose={() => setDiffSnapshot(null)}
+          onConfirmRestore={handleRestoreSnapshot}
+        />
+      )}
 
-      <SecretVaultModal
-        isOpen={isVaultModalOpen}
-        onClose={() => setIsVaultModalOpen(false)}
-        isUnlocked={isVaultUnlocked}
-        onUnlockSuccess={() => {
-          setIsVaultUnlocked(true);
-          showToast('Cofre secreto desbloqueado com sucesso!');
-        }}
-        onLockVault={() => {
-          setIsVaultUnlocked(false);
-          showToast('Cofre trancado. Contatos confidenciais protegidos.');
-        }}
-      />
+      {importExportOpen && (
+        <ImportExportModal
+          isOpen={importExportOpen}
+          onClose={() => setImportExportOpen(false)}
+          defaultTab={importExportTab}
+          contacts={contacts}
+          onImportContacts={handleImportContacts}
+        />
+      )}
 
-      <SnapshotDiffModal
-        snapshot={diffSnapshot}
-        currentContacts={contacts}
-        onClose={() => setDiffSnapshot(null)}
-        onConfirmRestore={handleRestoreSnapshot}
-      />
-
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-200/80 bg-white py-4 px-4 sm:px-6 text-center text-xs text-slate-500 dark:border-slate-800 dark:bg-[#0A0D14] w-full max-w-full overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mx-auto max-w-7xl w-full">
-          <div className="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
-            <span className="font-semibold text-slate-700 dark:text-slate-300">CloudAgenda Pro</span>
-            <span>·</span>
-            <span>Nuvem Conectada ({currentUser.email})</span>
-          </div>
-          <div className="text-[11px] text-slate-400 font-mono">
-            E2EE Criptografado · Padrão RFC vCard 3.0/4.0 · Google CSV Ready
-          </div>
-        </div>
-      </footer>
+      {isVaultModalOpen && (
+        <SecretVaultModal
+          isOpen={isVaultModalOpen}
+          onClose={() => setIsVaultModalOpen(false)}
+          isUnlocked={isVaultUnlocked}
+          onUnlockSuccess={() => {
+            setIsVaultUnlocked(true);
+            showToast('Cofre Secreto Desbloqueado!');
+          }}
+          onLockVault={() => {
+            setIsVaultUnlocked(false);
+            showToast('Cofre Secreto Trancado.');
+          }}
+        />
+      )}
     </div>
   );
 }
