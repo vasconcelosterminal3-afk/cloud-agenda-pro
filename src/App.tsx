@@ -25,14 +25,14 @@ import { Contact, CloudBackupSnapshot, SyncedDevice } from './types/contact';
 import {
   AppUser,
   subscribeToAuth,
-  logoutFromFirebase,
+  logoutFromSupabase,
   subscribeToContacts,
-  saveContactToFirestore,
-  deleteContactFromFirestore,
-  deleteContactsBulkFromFirestore,
-  saveContactsBulkToFirestore,
-  restoreBackupIntoFirestore,
-} from './firebase';
+  saveContactToSupabase,
+  deleteContactFromSupabase,
+  deleteContactsBulkFromSupabase,
+  saveContactsBulkToSupabase,
+  restoreBackupIntoSupabase,
+} from './supabase';
 import {
   loadCloudSnapshots,
   saveCloudSnapshots,
@@ -70,7 +70,7 @@ const PRESET_GROUPS = [
 ];
 
 export default function App() {
-  // Authentication State via Firebase Auth (with browserLocalPersistence)
+  // Authentication State via Supabase Auth (with persistent session storage)
   const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
 
@@ -80,7 +80,7 @@ export default function App() {
     return localStorage.getItem('cloudagenda_theme') === 'dark';
   });
 
-  // Real-time Firestore synchronized contacts
+  // Real-time Supabase synchronized contacts
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [snapshots, setSnapshots] = useState<CloudBackupSnapshot[]>([]);
   const [devices, setDevices] = useState<SyncedDevice[]>([]);
@@ -126,7 +126,7 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // 1. Firebase Auth listener (keeps session active across restarts via browserLocalPersistence)
+  // 1. Supabase Auth listener (keeps session active across restarts via Supabase Auth persistent storage)
   useEffect(() => {
     const unsubscribe = subscribeToAuth((user) => {
       setCurrentUser(user);
@@ -136,7 +136,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Real-time Cloud Firestore synchronization ('contacts' collection with where("userId", "==", user.uid))
+  // 2. Real-time Supabase synchronization ('contacts' table filtered by user_id)
   useEffect(() => {
     if (!currentUser) {
       setContacts([]);
@@ -149,14 +149,14 @@ export default function App() {
 
     setIsSyncing(true);
 
-    // Subscribe to Firestore onSnapshot
+    // Subscribe to Supabase contacts
     const unsubscribeContacts = subscribeToContacts(
       currentUser.uid,
       async (loadedContacts) => {
-        // If this is a brand new account with 0 contacts, seed initial demo contacts into Firestore
+        // If this is a brand new account with 0 contacts, seed initial demo contacts into Supabase
         if (loadedContacts.length === 0 && !isDataLoaded) {
           try {
-            await saveContactsBulkToFirestore(currentUser.uid, INITIAL_CONTACTS);
+            await saveContactsBulkToSupabase(currentUser.uid, INITIAL_CONTACTS);
             return;
           } catch (seedErr) {
             console.warn('Seed contacts warning:', seedErr);
@@ -167,7 +167,7 @@ export default function App() {
         setIsSyncing(false);
       },
       (error) => {
-        console.error('Firestore subscription error:', error);
+        console.error('Supabase subscription error:', error);
         setIsSyncing(false);
       }
     );
@@ -243,18 +243,18 @@ export default function App() {
   }, [contacts, isVaultUnlocked, selectedTag, searchQuery]);
 
   // ------------------------------------------------------------------
-  // REAL CLOUD FIRESTORE MUTATIONS (Zero LocalStorage for contacts)
+  // REAL CLOUD SUPABASE MUTATIONS (contacts table)
   // ------------------------------------------------------------------
 
   const handleSaveContact = async (contactToSave: Contact) => {
     if (!currentUser) return;
     setIsSyncing(true);
     try {
-      await saveContactToFirestore(currentUser.uid, contactToSave);
-      showToast(`Contato "${contactToSave.name}" salvo no Firebase!`);
+      await saveContactToSupabase(currentUser.uid, contactToSave);
+      showToast(`Contato "${contactToSave.name}" salvo no Supabase!`);
     } catch (err: any) {
-      console.error('Erro ao salvar no Firestore:', err);
-      showToast('Falha ao salvar no Firestore. Verifique a conexão.');
+      console.error('Erro ao salvar no Supabase:', err);
+      showToast('Falha ao salvar no Supabase. Verifique a conexão.');
     } finally {
       setIsSyncing(false);
     }
@@ -267,7 +267,7 @@ export default function App() {
 
     setIsSyncing(true);
     try {
-      await deleteContactFromFirestore(contactId, currentUser.uid);
+      await deleteContactFromSupabase(contactId, currentUser.uid);
 
       // Save into trash
       const newTrashItem: TrashItem = {
@@ -295,7 +295,7 @@ export default function App() {
     if (!target) return;
 
     try {
-      await saveContactToFirestore(currentUser.uid, {
+      await saveContactToSupabase(currentUser.uid, {
         ...target,
         isFavorite: !target.isFavorite,
       });
@@ -310,7 +310,7 @@ export default function App() {
     if (!target) return;
 
     try {
-      await saveContactToFirestore(currentUser.uid, {
+      await saveContactToSupabase(currentUser.uid, {
         ...target,
         isEmergencyIce: !target.isEmergencyIce,
       });
@@ -334,7 +334,7 @@ export default function App() {
     }
   };
 
-  // Bulk actions in Firestore
+  // Bulk actions in Supabase
   const handleBulkDelete = async () => {
     if (!currentUser || selectedContactIds.size === 0) return;
     const idsToDelete = Array.from(selectedContactIds);
@@ -342,7 +342,7 @@ export default function App() {
 
     setIsSyncing(true);
     try {
-      await deleteContactsBulkFromFirestore(idsToDelete, currentUser.uid);
+      await deleteContactsBulkFromSupabase(idsToDelete, currentUser.uid);
 
       const newTrash = [
         ...toDeleteContacts.map((c) => ({
@@ -358,7 +358,7 @@ export default function App() {
       setSelectedContactIds(new Set());
       showToast(`${idsToDelete.length} contatos movidos para a lixeira.`);
     } catch (err) {
-      console.error('Erro ao apagar em lote no Firestore:', err);
+      console.error('Erro ao apagar em lote no Supabase:', err);
       showToast('Falha ao apagar contatos em lote.');
     } finally {
       setIsSyncing(false);
@@ -372,7 +372,7 @@ export default function App() {
     showToast(`${selected.length} contatos exportados em vCard.`);
   };
 
-  // Universal Import into Firestore (Excel / JSON / Paste Ctrl+V)
+  // Universal Import into Supabase (Excel / JSON / Paste Ctrl+V)
   const handleImportContacts = async (imported: Contact[], mode: 'append' | 'replace') => {
     if (!currentUser) return;
     setIsSyncing(true);
@@ -381,12 +381,12 @@ export default function App() {
       if (mode === 'replace') {
         const existingIds = contacts.map((c) => c.id);
         if (existingIds.length > 0) {
-          await deleteContactsBulkFromFirestore(existingIds, currentUser.uid);
+          await deleteContactsBulkFromSupabase(existingIds, currentUser.uid);
         }
       }
 
-      await saveContactsBulkToFirestore(currentUser.uid, imported);
-      showToast(`${imported.length} contatos gravados no Firebase com sucesso!`);
+      await saveContactsBulkToSupabase(currentUser.uid, imported);
+      showToast(`${imported.length} contatos gravados no Supabase com sucesso!`);
 
       // Record snapshot
       const snap: CloudBackupSnapshot = {
@@ -396,7 +396,7 @@ export default function App() {
         contactCount: imported.length,
         sizeBytes: new Blob([JSON.stringify(imported)]).size,
         deviceOrigin: 'Importação Universal (Excel/Ctrl+V)',
-        checksum: 'FB-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
+        checksum: 'SB-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
         contacts: imported,
         isAutomatic: true,
       };
@@ -405,19 +405,19 @@ export default function App() {
       await saveCloudSnapshots(currentUser.uid, updatedSnapshots);
     } catch (err) {
       console.error('Erro ao importar contatos:', err);
-      showToast('Falha ao sincronizar importação no Firebase.');
+      showToast('Falha ao sincronizar importação no Supabase.');
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Dedicated JSON Backup restore with deduplication against current Firestore data
+  // Dedicated JSON Backup restore with deduplication against current Supabase data
   const handleRestoreJsonBackup = async (importedContacts: Contact[]): Promise<{ addedCount: number; skippedCount: number }> => {
     if (!currentUser) return { addedCount: 0, skippedCount: 0 };
     setIsSyncing(true);
     try {
-      const res = await restoreBackupIntoFirestore(currentUser.uid, importedContacts, contacts);
-      showToast(`${res.addedCount} novos contatos restaurados no Firebase (${res.skippedCount} duplicados ignorados).`);
+      const res = await restoreBackupIntoSupabase(currentUser.uid, importedContacts, contacts);
+      showToast(`${res.addedCount} novos contatos restaurados no Supabase (${res.skippedCount} duplicados ignorados).`);
       return res;
     } finally {
       setIsSyncing(false);
@@ -431,11 +431,11 @@ export default function App() {
 
     const snap: CloudBackupSnapshot = {
       id: 'snap_' + Date.now(),
-      label: customLabel || `Snapshot Manual no Firebase (${new Date().toLocaleTimeString('pt-BR')})`,
+      label: customLabel || `Snapshot Manual no Supabase (${new Date().toLocaleTimeString('pt-BR')})`,
       createdAt: new Date().toLocaleString('pt-BR'),
       contactCount: contacts.length,
       sizeBytes: new Blob([JSON.stringify(contacts)]).size,
-      deviceOrigin: 'Navegador Web / Firebase Cloud',
+      deviceOrigin: 'Navegador Web / Supabase Cloud',
       checksum: 'E2EE-' + Math.random().toString(36).slice(2, 8).toUpperCase(),
       contacts,
       isAutomatic: false,
@@ -445,14 +445,14 @@ export default function App() {
     setSnapshots(updatedSnapshots);
     await saveCloudSnapshots(currentUser.uid, updatedSnapshots);
     setIsSyncing(false);
-    showToast(`Snapshot "${snap.label}" registrado no Firebase!`);
+    showToast(`Snapshot "${snap.label}" registrado no Supabase!`);
   };
 
   const handleRestoreSnapshot = async (snapshot: CloudBackupSnapshot) => {
     if (!currentUser) return;
     setIsSyncing(true);
     try {
-      await saveContactsBulkToFirestore(currentUser.uid, snapshot.contacts);
+      await saveContactsBulkToSupabase(currentUser.uid, snapshot.contacts);
       showToast(`Agenda restaurada para o snapshot: "${snapshot.label}"!`);
       setActiveTab('contacts');
     } finally {
@@ -474,7 +474,7 @@ export default function App() {
     const item = trashItems.find((t) => t.contact.id === contactId);
     if (!item) return;
 
-    await saveContactToFirestore(currentUser.uid, item.contact);
+    await saveContactToSupabase(currentUser.uid, item.contact);
     const updatedTrash = trashItems.filter((t) => t.contact.id !== contactId);
     setTrashItems(updatedTrash);
     await saveCloudTrash(currentUser.uid, updatedTrash);
@@ -485,7 +485,7 @@ export default function App() {
   const handleRestoreAllTrash = async () => {
     if (!currentUser || trashItems.length === 0) return;
     const restored = trashItems.map((t) => t.contact);
-    await saveContactsBulkToFirestore(currentUser.uid, restored);
+    await saveContactsBulkToSupabase(currentUser.uid, restored);
     setTrashItems([]);
     await saveCloudTrash(currentUser.uid, []);
     showToast('Todos os contatos da lixeira foram restaurados.');
@@ -512,7 +512,7 @@ export default function App() {
     );
     setDevices(updated);
     await saveCloudDevices(currentUser.uid, updated);
-    showToast('Aparelho sincronizado com a nuvem do Firebase.');
+    showToast('Aparelho sincronizado com a nuvem do Supabase.');
   };
 
   const handleRemoveDevice = async (deviceId: string) => {
@@ -533,17 +533,17 @@ export default function App() {
 
   const handleApplyMerges = async (mergedList: Contact[]) => {
     if (!currentUser) return;
-    await saveContactsBulkToFirestore(currentUser.uid, mergedList);
-    showToast('Contatos duplicados mesclados com sucesso no Firebase!');
+    await saveContactsBulkToSupabase(currentUser.uid, mergedList);
+    showToast('Contatos duplicados mesclados com sucesso no Supabase!');
   };
 
   const handleLogout = async () => {
-    await logoutFromFirebase();
+    await logoutFromSupabase();
     setCurrentUser(null);
     showToast('Sessão encerrada com segurança.');
   };
 
-  // If Firebase Auth is checking stored credentials, show subtle non-blocking splash
+  // If Supabase Auth is checking stored credentials, show subtle non-blocking splash
   if (isAuthChecking) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center bg-[#F9FAFB] dark:bg-[#090C10]">
@@ -600,7 +600,7 @@ export default function App() {
         healthScore={healthReport.score}
         duplicateCount={duplicateGroups.length}
         storageUsedBytes={storageUsedBytes}
-        lastSyncTime={isSyncing ? 'Sincronizando...' : 'Firebase Conectado'}
+        lastSyncTime={isSyncing ? 'Sincronizando...' : 'Supabase Conectado'}
         cloudUserEmail={currentUser.email}
         onOpenImportExport={(tab) => {
           setImportExportTab(tab);

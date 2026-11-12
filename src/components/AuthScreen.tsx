@@ -12,14 +12,13 @@ import {
   EyeOff,
   AlertCircle,
   Database,
-  Flame,
 } from 'lucide-react';
 import {
   AppUser,
-  loginWithFirebase,
-  registerWithFirebase,
-  isFirebaseConfigured,
-} from '../firebase';
+  loginWithSupabase,
+  registerWithSupabase,
+  isSupabaseConfigured,
+} from '../supabase';
 
 interface AuthScreenProps {
   onAuthSuccess: (user: AppUser) => void;
@@ -53,25 +52,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     setIsLoading(true);
     try {
       if (mode === 'login') {
-        const user = await loginWithFirebase(cleanEmail, password, rememberMe);
+        const user = await loginWithSupabase(cleanEmail, password, rememberMe);
         onAuthSuccess(user);
       } else {
-        const user = await registerWithFirebase(cleanEmail, password, name.trim(), rememberMe);
+        const user = await registerWithSupabase(cleanEmail, password, name.trim(), rememberMe);
         onAuthSuccess(user);
       }
     } catch (err: any) {
-      console.error('Firebase Auth Error:', err);
-      const code = err?.code || '';
-      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+      console.error('Supabase Auth Error:', err);
+      const msg = err?.message || '';
+      if (msg.includes('Invalid login credentials') || msg.includes('invalid_grant')) {
         setErrorMessage('E-mail ou senha incorretos. Verifique suas credenciais.');
-      } else if (code === 'auth/email-already-in-use') {
+      } else if (msg.includes('User already registered') || msg.includes('already_exists')) {
         setErrorMessage('Este e-mail já está cadastrado. Alterne para a aba Entrar.');
-      } else if (code === 'auth/invalid-email') {
-        setErrorMessage('Formato de e-mail inválido.');
-      } else if (code === 'auth/weak-password') {
+      } else if (msg.includes('Password should be')) {
         setErrorMessage('Senha fraca. Utilize pelo menos 6 caracteres.');
       } else {
-        setErrorMessage(err?.message || 'Falha ao autenticar no Firebase. Tente novamente.');
+        setErrorMessage(msg || 'Falha ao autenticar no Supabase. Tente novamente.');
       }
     } finally {
       setIsLoading(false);
@@ -85,12 +82,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const user = await loginWithFirebase('vasconcelos.contabilidade@outlook.com', 'Vasconcelos2026!#', true);
+      const user = await loginWithSupabase('vasconcelos.contabilidade@outlook.com', 'Vasconcelos2026!#', true);
       onAuthSuccess(user);
     } catch {
       // Auto-register demo if not existing
       try {
-        const user = await registerWithFirebase(
+        const user = await registerWithSupabase(
           'vasconcelos.contabilidade@outlook.com',
           'Vasconcelos2026!#',
           'Vasconcelos Contabilidade',
@@ -128,15 +125,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
           </div>
 
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-xs">
-            Sincronização em tempo real de contatos com Cloud Firestore & Firebase Auth.
+            Sincronização em nuvem de contatos com Supabase PostgreSQL & Auth.
           </p>
 
           {/* Cloud engine status badge */}
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-[11px] font-medium text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300">
-            <Flame className="h-3.5 w-3.5 text-amber-500" />
+          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
+            <Database className="h-3.5 w-3.5 text-emerald-500" />
             <span>Nuvem Ativa:</span>
             <span className="font-semibold">
-              {isFirebaseConfigured ? 'Firebase Firestore (Produção)' : 'Firebase E2EE Ready'}
+              {isSupabaseConfigured ? 'Supabase PostgreSQL (Produção)' : 'Supabase E2EE Ready'}
             </span>
           </div>
         </div>
@@ -267,7 +264,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
             {isLoading ? (
               <span className="flex items-center gap-2">
                 <span className="h-3.5 w-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                <span>Autenticando no Firebase...</span>
+                <span>Autenticando no Supabase...</span>
               </span>
             ) : (
               <>
@@ -294,7 +291,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthSuccess }) => {
         {/* Security footer info */}
         <div className="mt-4 flex items-center justify-center gap-2 text-[11px] text-slate-400 dark:text-slate-500">
           <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-          <span>Sessão permanente via browserLocalPersistence</span>
+          <span>Sessão permanente via Supabase Auth Storage</span>
         </div>
       </div>
     </div>

@@ -58,7 +58,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
       app: 'CloudAgenda Pro',
       version: '4.5.0',
       exportedAt: new Date().toISOString(),
-      encryption: 'AES-256-GCM / Firebase Cloud',
+      encryption: 'AES-256-GCM / Supabase Cloud',
       totalContacts: contacts.length,
       contacts: contacts.map((c) => ({
         id: c.id,
@@ -104,7 +104,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
 
       const res = await onRestoreJsonBackup(rawList);
       setRestoreFeedback(
-        `Restauração concluída com sucesso! ${res.addedCount} novos contatos gravados no Firebase (${res.skippedCount} contatos já existentes foram preservados sem duplicação).`
+        `Restauração concluída com sucesso! ${res.addedCount} novos contatos gravados no Supabase (${res.skippedCount} contatos já existentes foram preservados sem duplicação).`
       );
     } catch (err: any) {
       console.error('Falha ao restaurar arquivo JSON:', err);
@@ -131,7 +131,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
                 <ShieldCheck className="h-4 w-4" />
-                Firebase Cloud Firestore Ativo
+                Supabase PostgreSQL Ativo
               </span>
               <span className="text-xs text-slate-400 font-mono">
                 Persistência Permanente & Real-time
@@ -141,7 +141,7 @@ export const CloudBackupView: React.FC<CloudBackupViewProps> = ({
               Backup & Segurança da Agenda
             </h1>
             <p className="max-w-2xl text-xs md:text-sm text-slate-300 font-normal leading-relaxed">
-              Todos os seus contatos são sincronizados continuamente no Cloud Firestore com vínculo seguro ao seu UID de usuário. Exporte backups offline em JSON ou restaure sem duplicar dados.
+              Todos os seus contatos são sincronizados continuamente na tabela 'contacts' do Supabase com vínculo seguro ao seu UID de usuário. Exporte backups offline em JSON ou restaure sem duplicar dados.
             </p>
           </div>
 

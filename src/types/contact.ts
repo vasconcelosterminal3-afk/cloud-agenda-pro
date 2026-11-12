@@ -41,7 +41,7 @@ export interface Contact {
   isFavorite: boolean;
   isEmergencyIce: boolean; // In Case of Emergency
   isVaultSecret?: boolean; // Hidden behind PIN vault
-  userId?: string; // Firebase Auth User ID
+  userId?: string; // Supabase / Cloud User ID
   createdAt: string;
   updatedAt: string;
 }
